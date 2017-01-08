@@ -27,27 +27,27 @@ NOTES:
 Create new repo "some_idea", create a new user "potter" and give them RW access to it,
 	then change your mind and give them read-only access:
 ```{.bash}
-# gsb.sh repo add some_idea
+$ sudo gsb.sh repo add some_idea
 /usr/src/git/some_idea /home/ubuntu/git-shell_bind
 Initialized empty Git repository in /usr/src/git/some_idea/
 Adding group `git_some_idea' (GID 1014) ...
 Done.
-#
-# gsb.sh -k ./id_rsa_potter.pub user add potter
+$
+$ sudo gsb.sh -k ./id_rsa_potter.pub user add potter
 Adding user `potter' ...
 Adding new group `potter' (1027) ...
 Adding new user `potter' (1007) with group `potter' ...
 Creating home directory `/home/potter' ...
 Copying files from `/etc/skel' ...
-#
-# gsb.sh -w auth add potter some_idea
+$
+$ sudo gsb.sh -w auth add potter some_idea
 /usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
-#
-# gsb.sh auth add potter some_idea
+$
+$ sudo gsb.sh auth add potter some_idea
 Removing user `potter' from group `git_some_idea' ...
 Done.
 /usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
-#
+$
 ```
 
 This repo can now be cloned by the owner of the corresponding private key with:
@@ -57,15 +57,15 @@ git clone ssh://potter@[server]/~/some_idea
 
 To list active repos, users and authorizations, use `ls` (which allows filtering):
 ```{/bash}
-# gsb.sh repo ls
+$ sudo gsb.sh repo ls
 some_idea
-#
-# gsb.sh user ls
+$
+$ sudo gsb.sh user ls
 potter
-#
-# gsb.sh auth ls some_idea
+$
+$ sudo gsb.sh auth ls some_idea
 some_idea  potter
-#
+$
 ```
 
 That last gets only the authorizations for `some_idea`.
@@ -73,30 +73,30 @@ That last gets only the authorizations for `some_idea`.
 Repos and users can be disabled, after which they will show up when the `-i`
 	flag is used on `ls`:
 ```{.bash}
-# gsb.sh user disable potter
-#
-# gsb.sh user ls potter
-#
-# gsb.sh -i user ls potter
+$ sudo gsb.sh user disable potter
+$
+$ sudo gsb.sh user ls potter
+$
+$ sudo gsb.sh -i user ls potter
 potter
-#
-# gsb.sh auth ls potter
-# gsb.sh -i auth ls potter
+$
+$ sudo gsb.sh auth ls potter
+$ sudo gsb.sh -i auth ls potter
 some_idea  potter
-#
+$
 ```
 
 NOTE that an `auth` CANNOT be disabled; it can only be added or removed.
 However, when a `user` or `repo` is disabled, all of their authorizations are saved,
 	and restored when the user is once again enabled:
 ```{.bash}
-# gsb.sh user add potter
-#
-# gsb.sh -i auth ls potter
-#
-# gsb.sh auth ls potter
+$ sudo gsb.sh user add potter
+$
+$ sudo gsb.sh -i auth ls potter
+$
+$ sudo gsb.sh auth ls potter
 some_idea  potter
-#
+$
 ```
 
 
