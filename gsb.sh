@@ -4,9 +4,9 @@ usage()
 {
 	echo -e "expected usage:
 $0 [-d|--debug] [-i|--inactive]
-	[-q|--quota MB]		repo {ls|add|disable|rem} REPO
-	[-s|--ssh-key KEY]	user {ls|add|disable|rem} USER
-	[-r|--read-only]	auth {ls|add|rem} USER REPO
+	[-q|--quota MB]				repo {ls|add|disable|rem} REPO
+	[-s|--ssh-key KEY] [-k|--key-file FILE]	user {ls|add|disable|rem} USER
+	[-r|--read-only]			auth {ls|add|rem} USER REPO
 
 NOTES:
 	- script should be run with root privileges.
@@ -48,9 +48,17 @@ do
 		shift; shift
 		;;
 	-s|--ssh-key)
-		DEBUG_PRN_="got key $2"
+		DEBUG_PRN_="got key: $2"
 		KEY_="$2"
 		shift; shift
+		;;
+	-k|--key_file)
+		if [[ ! -e "$2" ]]; then
+			echo "key file '$2' doesn't exist" >&2
+			exit 1
+		fi
+		KEY_="$(cat $2)"
+		DEBUG_PRN_="got key from file: $KEY_"
 		;;
 	-r|--read-only)
 		DEBUG_PRN_="read-only"
