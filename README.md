@@ -11,9 +11,10 @@ To put it there, you can run `sudo make install`.
 ```{.bash}
 usage:
 ./gsb.sh [-v|--verbose] [-i|--inactive]
-	[-q|--quota MB]					repo {ls|add|disable|rm} REPO
-	[-s|--ssh-key KEY] [-k|--key-file FILE]		user {ls|add|disable|rm} USER
-	[-r|--read-only]				auth {ls|add|rm} USER REPO
+	[-q|--quota MB]			repo {ls|add|disable|rm} REPO
+	[-s|--ssh-key KEY]
+	[-k|--key-file FILE]		user {ls|add|disable|rm} USER
+	[-r|--read-only]		auth {ls|add|rm} USER REPO
 
 NOTES:
 	- script should be run with root privileges.
