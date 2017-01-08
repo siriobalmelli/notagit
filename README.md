@@ -1,6 +1,8 @@
 # git-shell_bind
 A BASH script to administer GIT repos on a server, which are accessed via SSH only.
 
+## Synopsis
+TODO
 
 ## Example
 TODO
