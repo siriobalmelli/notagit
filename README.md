@@ -123,6 +123,7 @@ Read-only users are not added to the group, but only have the bind mount.
 
 ## TODO
 - Quotas on .git repos (to stop users from crashing server)
+- simple user-SSH-key manipulation
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
