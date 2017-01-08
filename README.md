@@ -129,11 +129,11 @@ Read-only users are not added to the group, but only have the bind mount.
 - Pen testing
 
 
-# pen test cases
-Repos: A, B, C
-User 1: rw repo A, r repo B
-User 2: rw repo A (disabled)
-User 3: rw all repos (key not given to pen tester)
+# pen test scenario
+-	Repos: A, B, C
+-	User 1: rw repo A, r repo B
+-	User 2: rw repo A (disabled)
+-	User 3: rw all repos (key not given to pen tester)
 
 ## User 1
 -	del repo A
