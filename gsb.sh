@@ -265,7 +265,7 @@ user()
 			COND_=".ssh/authorized_keys"
 		fi
 		# only go through "git-shell" users
-		for u in $(getent passwd | grep git-shell | cut -d ':' -f 1); do
+		for u in $(getent passwd | grep git-shell | cut -d ':' -f 1 | sort); do
 			if [[ -e "/home/$u/$COND_" ]]; then
 				echo $u
 			fi
@@ -400,9 +400,9 @@ auth()
 	# Show either active or inactive authorizations
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		if [[ ! $INACTIVE_ ]]; then
-			sed -rn 's|^'"$REPO_BASE"'/([^\t]+)\t/home/([^/]+).*|\2\t\1|p' /etc/fstab
+			sed -rn 's|^\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1  \2|p' /etc/fstab
 		else
-			sed -rn 's|^#'"$REPO_BASE"'/([^\t]+)\t/home/([^/]+).*|\2\t\1|p' /etc/fstab
+			sed -rn 's|^\s*#\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1  \2|p' /etc/fstab
 		fi
 		return 0
 	fi
@@ -412,18 +412,25 @@ auth()
 		usage
 		exit 1
 	fi
-	# user must exist
-	if ! getent passwd | grep $2 >/dev/null; then
-		echo "user '$2' doesn't exist" >&2
+
+	# user must exist and must have the proper shell
+	if ! getent passwd | grep "$2.*git-shell" >/dev/null; then
+		echo "user '$2' doesn't exist or doesn't log into git-shell" >&2
 		exit 1
 	fi
+	# user must not be disabled
+	if [[ -e "/home/$2/.ssh/disabled" ]]; then
+		echo "user '$2' is disabled" >&2
+		exit 1
+	fi
+
+	# remove all spaces from repo
+	$3=$(echo "$3" | sed 's/ /_/g')
 	# repo must exist
 	if [[ ! -d "$REPO_BASE/$3" ]]; then
 		echo "repo '$3' doesn't exist" >&2
 		exit 1
 	fi
-	# remove all spaces from repo
-	$3=$(echo "$3" | sed 's/ /_/g')
 
 	case $1 in
 		#	add
