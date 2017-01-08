@@ -11,7 +11,6 @@ $0 [-d|--debug] [-i|--inactive]
 NOTES:
 	- script should be run with root privileges.
 	- KEY should be quoted.
-	- quotas not yet implemented.
 	- space characters in repo names will be replaced with underscores.
 " >&2
 }
@@ -45,6 +44,8 @@ do
 	-q|--quota)
 		DEBUG_PRN_="got quota of $2"
 		QUOTA_="$2"
+		echo "quotas not yet implemented" >&2
+		exit 1
 		shift; shift
 		;;
 	-s|--ssh-key)
@@ -228,12 +229,12 @@ repo()
 			# remove all mount dirs
 			find /home -type d -name "$2" -exec rm -rf '{}' \;
 
+			# remove repo and/or archive dir, archived mounts list
+			rm -rf "$REPO_BASE/$2" "$ARCH_BASE/$2*"
+
 			#remove group
 			groupdel "git_$2"
 				poop=$?; if (( $poop )); then exit $poop; fi
-
-			# remove repo and/or archive dir, archived mounts list
-			rm -rf "$REPO_BASE/$2" "$ARCH_BASE/$2*"
 			;;
 
 		#	purge_mounts
