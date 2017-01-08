@@ -5,12 +5,15 @@ usage()
 	echo -e "expected usage:
 $0 [-d|--debug] [-i|--inactive]
 	[-q|--quota MB]		repo {ls|add|disable|rem} REPO
-	[-s|--ssh-key FILE]	user {ls|add|disable|rem} USER
+	[-s|--ssh-key KEY]	user {ls|add|disable|rem} USER
 	[-r|--read-only]	auth {ls|add|rem} USER REPO
 
-NOTE: quotas not yet implemented.
-NOTE: script should be run with root privileges.
-NOTE: space characters in repo names will be replaced with underscores." >&2
+NOTES:
+	- script should be run with root privileges.
+	- KEY should be quoted.
+	- quotas not yet implemented.
+	- space characters in repo names will be replaced with underscores.
+" >&2
 }
 
 
