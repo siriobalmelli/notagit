@@ -2,6 +2,10 @@
 A BASH script to administer GIT repos on a server, which are accessed via SSH only.
 
 
+## Example
+TODO
+
+
 ## Architecture
 A `repo` is a directory inside `/usr/src/git`, which is owned by `nobody` and a repo-specific system group.
 The parent directory `/usr/src/git` is owned by root and not readable by others.
@@ -17,21 +21,18 @@ A user authorized to access a repo is:
 Read-only users are not added to the group, but only have the bind mount.
 
 
-## Example
-TODO
-
-
 ## Technical Motivation
 
 -	Security
--	Ease of configuration
--	Using existing mechanisms only: no new software development
+-	Simplicity
+-	Use existing mechanisms only: no new (bug-prone) code
 
 
-## TODO:
+## TODO
 - Quotas on .git repos (to stop users from crashing server)
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
+- Pen testing
 
 
 # pen test cases
