@@ -87,7 +87,7 @@ $
 
 NOTE that an `auth` CANNOT be disabled; it can only be added or removed.
 However, when a `user` or `repo` is disabled, all of their authorizations are saved,
-	and restored when the user is once again enabled:
+	and restored when the `user` or `repo` is once again enabled:
 ```
 $ sudo gsb.sh user add potter
 $

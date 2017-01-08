@@ -102,7 +102,7 @@ check_platform()
 	if grep -E "^[^#]+asswordAuthentication\s+yes" /etc/ssh/sshd_config >/dev/null; then
 		echo "WARNING: your ssh server allows password logins. Please consider disabling this." >&2
 	fi
-	#TODO verify REPO_BASE exists on an FS mounted with quotas
+	#TODO verify REPO_BASE exists on an FS mounted with quotas and "noexec"
 }
 
 
