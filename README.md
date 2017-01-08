@@ -8,13 +8,12 @@ On a production server, it probably belongs in `/usr/sbin`.
 To put it there, you can run `sudo make install`.
 
 ## Synopsis
-```{.bash}
+```
 usage:
 ./gsb.sh [-v|--verbose] [-i|--inactive]
-	[-q|--quota MB]			repo {ls|add|disable|rm} REPO
-	[-s|--ssh-key KEY]
-	[-k|--key-file FILE]		user {ls|add|disable|rm} USER
-	[-r|--read-only]		auth {ls|add|rm} USER REPO
+	[-q|--quota MB]				repo {ls|add|disable|rm} REPO
+	[-s|--ssh-key KEY] [-k|--key-file FILE]	user {ls|add|disable|rm} USER
+	[-r|--read-only]			auth {ls|add|rm} USER REPO
 
 NOTES:
 	- script should be run with root privileges.
@@ -26,7 +25,7 @@ NOTES:
 
 Create new repo "some_idea", create a new user "potter" and give them RW access to it,
 	then change your mind and give them read-only access:
-```{.bash}
+```
 $ sudo gsb.sh repo add some_idea
 /usr/src/git/some_idea /home/ubuntu/git-shell_bind
 Initialized empty Git repository in /usr/src/git/some_idea/
@@ -51,12 +50,12 @@ $
 ```
 
 This repo can now be cloned by the owner of the corresponding private key with:
-``` {.bash}
+```
 git clone ssh://potter@[server]/~/some_idea
 ```
 
 To list active repos, users and authorizations, use `ls` (which allows filtering):
-```{/bash}
+```
 $ sudo gsb.sh repo ls
 some_idea
 $
@@ -72,7 +71,7 @@ That last gets only the authorizations for `some_idea`.
 
 Repos and users can be disabled, after which they will show up when the `-i`
 	flag is used on `ls`:
-```{.bash}
+```
 $ sudo gsb.sh user disable potter
 $
 $ sudo gsb.sh user ls potter
@@ -89,7 +88,7 @@ $
 NOTE that an `auth` CANNOT be disabled; it can only be added or removed.
 However, when a `user` or `repo` is disabled, all of their authorizations are saved,
 	and restored when the user is once again enabled:
-```{.bash}
+```
 $ sudo gsb.sh user add potter
 $
 $ sudo gsb.sh -i auth ls potter
