@@ -1,4 +1,5 @@
 #!/bin/bash
+#TODO: bug - user add with key adds twice instead of ignoring
 
 usage()
 {
