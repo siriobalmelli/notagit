@@ -1,5 +1,6 @@
 #!/bin/bash
 #TODO: bug - user add with key adds twice instead of ignoring
+#TODO: bug: does not check for user existence when adding read-only access to repo: creates a home directory for a nonexistent user
 
 usage()
 {
