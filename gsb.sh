@@ -53,8 +53,13 @@ do
 		;;
 	-s|--ssh-key)
 		DEBUG_PRN_="got key: $2"
-		KEY_="$2"
-		shift; shift
+		if [[ "$2" != "user" && "$2" != "repo" && "$2" != "auth" ]]; then 
+			KEY_="$2"
+			shift; shift;
+		else
+			KEY_=1
+			shift;
+		fi 	
 		;;
 	-k|--key_file)
 		if [[ ! -e "$2" ]]; then
@@ -286,6 +291,9 @@ user()
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			if [[ -e "/home/$u/$COND_" ]]; then
 				echo $u
+				if [[ "$KEY_" == "1" ]]; then
+					cat COND_
+				fi
 			fi
 		done
 		#done
