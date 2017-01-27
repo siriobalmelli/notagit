@@ -292,7 +292,7 @@ user()
 			if [[ -e "/home/$u/$COND_" ]]; then
 				echo $u
 				if [[ "$KEY_" == "1" ]]; then
-					cat COND_
+					cat $COND_
 				fi
 			fi
 		done
