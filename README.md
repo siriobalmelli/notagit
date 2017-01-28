@@ -2,7 +2,7 @@
 A BASH script to administer GIT repos on a server, which are accessed via SSH only.
 
 ## Installation
-`gsb.sh` can be run from this directory, where is was downloaded.
+`gsb.sh` can be run from the directory where is was downloaded.
 
 On a production server, it probably belongs in `/usr/sbin`.
 To put it there, you can run `sudo make install`.
