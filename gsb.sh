@@ -3,7 +3,7 @@
 # input validation regeces ;)
 REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'
-KEY_VAL='^ssh-[rd]sa \S+ \S+$'
+KEY_VAL='ssh-[rd]sa \S+ \S+'
 
 usage()
 {
@@ -129,7 +129,7 @@ repo()
 	fi
 
 	# all other invocations besides "list" require REPO
-	if [[ ! echo "$2" | grep -E "$REPO_VAL" >/dev/null ]]; then
+	if ! echo "$2" | grep -E "$REPO_VAL" >/dev/null; then
 		echo "repo() expects: $1 REPO" >&2
 		usage
 		exit 1
@@ -256,8 +256,10 @@ repo()
 #	user_umount_()
 #		$1	:	USER
 # Internal utility: unmount all repos for a certain user
-user_umount_(){ mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $DBG_ {} }
-
+user_umount_()
+{
+	mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $DBG_ {}
+}
 #	user_exists_()
 #		$1	:	USER
 user_exists_()
@@ -277,6 +279,25 @@ user_exists_()
 	fi
 
 	return 0
+}
+#	user_ssh_perms_()
+#		$1	:	USER
+user_ssh_perms_()
+{
+	# mark user changed
+	touch "/home/$1/$COND_"
+		poop=$?; if (( $poop )); then exit $poop; fi
+
+	# force ownership and permissions
+	chown $DBG_ -R "$1": "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	# force ownership and permissions
+	chown $DBG_ -R "$1": "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
 }
 
 #	user()
@@ -301,7 +322,7 @@ user()
 	fi
 
 	# all other commands require USER
-	if [[ ! echo "$2" | grep -E "$USER_VAL" >/dev/null  ]]; then
+	if ! echo "$2" | grep -E "$USER_VAL" >/dev/null; then
 		echo "user() expects: $1 USER" >&2
 		usage
 		exit 1
@@ -332,15 +353,8 @@ user()
 				poop=$?; if (( $poop )); then exit $poop; fi
 			fi
 	
-			# mark user changed
-			touch "/home/$2/.ssh/authorized_keys"
-				poop=$?; if (( $poop )); then exit $poop; fi
-
-			# force ownership and permissions
-			chown $DBG_ -R "$2": "/home/$2/.ssh"
-				poop=$?; if (( $poop )); then exit $poop; fi
-			chmod $DBG_ -R ugo-rwx,u+rX "/home/$2/.ssh"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			# handle SSH directory permissions
+			user_ssh_perms_ "$2"
 
 			# enable any commented-out mount entries for user
 			sed -i"" -r 's|^#('"$REPO_BASE"'.*/home/'"$2"'.*)|\1|g' /etc/fstab
@@ -406,33 +420,47 @@ key()
 	# Show keys for either active or inactive user(s), use $2 as a filter
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
-			# print user, and optionally contents of the proper auth_keys file
-			echo "$u"
-			sed -rn 's/.*(ssh-[rd]sa) (\S{24})\S+ (\S+)$/\t\1 \2... \3/p' /home/$u/.ssh/authorized_keys
+			# only show users who are enabled/disabled as per '-i' flag
+			if [[ -e /home/$u/$COND_ ]]; then
+				# print user, and optionally contents of the proper auth_keys file
+				echo "$u"
+				sed -rn 's/.*(ssh-[rd]sa) (\S{24})\S+ (\S+)$/\t\1 \2... \3/p' /home/$u/$COND_
+			fi
 		done
 		return 0
 	fi
 
-	# Try and parse KEY_ either from command line directly or from a file,
-	#+	using KEY_VAL as the validation RegEx in both cases
-	KEY_=
-	if [[ echo "$3" | grep -E "$KEY_VAL" >/dev/null ]]; then
-		KEY_="$3"
-	elif [[ -e "$3" ]]; then
-		KEY_=$(sed -rn "s|($KEY_VAL)|\1|p" "$3")
-	fi
-
-	#	validate that we have arguments USER and KEY
-	if [[ ! echo "$2" | grep -E "$USER_VAL" >/dev/null
-		|| ! "$KEY_" ]]
-	then
-		echo "key() expects: $1 USER REPO" >&2
+	#validate USER
+	#	validate that we have USER
+	if ! echo "$2" | grep -E "$USER_VAL" >/dev/null; then
+		echo "key() expects: $1 USER KEY" >&2
 		usage
 		exit 1
 	fi
-
 	# user must exist and be inactive/enabled according to '-i' flag
 	if ! user_exists_ "$2"; then exit 1; fi
+
+	# Try and parse KEY_ either:
+	#+		- from command line directly
+	#+		- from a file
+	#+		- from USER's existing authorized_keys
+	#+	... using KEY_VAL as the validation RegEx in all cases.
+	KEY_=
+	if echo "$3" | grep -E "$KEY_VAL" >/dev/null; then
+		KEY_="$3"
+	elif [[ -e "$3" ]]; then
+		KEY_=$(sed -rn "s|($KEY_VAL)|\1|p" "$3")
+	else
+		# Apparently illogical pipe of grep through sed
+		#+	because '$3' likely contains '+' and '/' chars.
+		KEY_="$(grep "$3" /home/$2/$COND_ | sed -rn "s/.*($KEY_VAL).*/\1/p")"
+	fi
+	# validate obtained key
+	if ! echo "$KEY_" | grep -E "$KEY_VAL" >/dev/null; then
+		echo "key '$KEY_' invalid" >&2
+		usage
+		exit 1
+	fi
 
 	case $1 in
 		#	add
@@ -443,6 +471,8 @@ key()
 			poop=$?; if (( $poop )); then exit $poop; fi
 			# sort and de-dup keys
 			sort -u -o "/home/$2/$COND_" "/home/$2/$COND_"
+			# ssh directory is kosher
+			user_ssh_perms_ "$2"
 			;;
 
 		#	rem
@@ -450,8 +480,10 @@ key()
 		rm|rem|del|delete)
 			# Avoid 'sed -i' because it will barf on "+" and "/" characters
 			#+	in the key itself.
-			grep -v "$KEY_" "/home/$2/$COND_" "/home/$2/${COND_}.temp"
+			grep -v "$KEY_" "/home/$2/$COND_" >"/home/$2/${COND_}.temp"
 			mv "/home/$2/${COND_}.temp" "/home/$2/$COND_"
+			# ssh directory is kosher
+			user_ssh_perms_ "$2"
 			;;
 
 		*)
@@ -481,8 +513,7 @@ auth()
 	fi
 
 	# all other calls must give USER and REPO
-	if [[ ! echo "$2" | grep -E "$USER_VAL" >/dev/null 
-		|| ! echo "$3" | grep -E "$REPO_VAL" >/dev/null ]]
+	if ! echo "$2" | grep -E "$USER_VAL" >/dev/null || ! echo "$3" | grep -E "$REPO_VAL" >/dev/null
 	then
 		echo "auth() expects: $1 USER REPO" >&2
 		usage
@@ -567,6 +598,10 @@ user)
 auth)
 	shift
 	auth $*
+	;;
+key)
+	shift
+	key $*
 	;;
 *)
 	echo "Unknown command '$1'" >&2
