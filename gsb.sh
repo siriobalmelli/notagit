@@ -121,10 +121,10 @@ repo()
 	# Show either active or inactive repos, user $2 as a filter string
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		if [[ ! $INACTIVE_ ]]; then
-			ls -1 "$REPO_BASE" | grep "$2"
+			ls -1 --ignore="lost+found" "$REPO_BASE" | grep "$2"
 			return $?
 		else
-			ls -1 --ignore="*.mounts" "$ARCH_BASE" | grep "$2"
+			ls -1 --ignore="lost+found" --ignore="*.mounts" "$ARCH_BASE" | grep "$2"
 			return $?
 		fi
 	fi
