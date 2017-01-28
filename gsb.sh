@@ -425,7 +425,7 @@ key()
 			if [[ -e /home/$u/$COND_ ]]; then
 				# print user, and optionally contents of the proper auth_keys file
 				echo "$u"
-				sed -rn 's/.*(ssh-[rd]sa) (\S{24})\S+ (\S+)$/\t\1 \2... \3/p' /home/$u/$COND_
+				sed -rn 's/.*(ssh-[rd]sa) \S+(\S{24}) (\S+)$/\t\1 ...\2 \3/p' /home/$u/$COND_
 			fi
 		done
 		return 0
@@ -454,12 +454,12 @@ key()
 	KEY_=
 	if echo "$*" | grep -E "$KEY_VAL" >/dev/null; then
 		KEY_="$(echo "$*" |  sed -rn "s/.*($KEY_VAL).*/\1/p")"
-	elif [[ -e "$3" ]]; then
-		KEY_=$(sed -rn "s|($KEY_VAL)|\1|p" "$3")
+	elif [[ -e "$1" ]]; then
+		KEY_=$(sed -rn "s|($KEY_VAL)|\1|p" "$1")
 	else
 		# Apparently illogical pipe of grep through sed
 		#+	because '$3' likely contains '+' and '/' chars.
-		KEY_="$(grep "$3" /home/$USR_/$COND_ | sed -rn "s/.*($KEY_VAL).*/\1/p")"
+		KEY_="$(grep "$1" /home/$USR_/$COND_ | sed -rn "s/.*($KEY_VAL).*/\1/p")"
 	fi
 	# validate obtained key
 	if ! echo "$KEY_" | grep -E "$KEY_VAL" >/dev/null; then
@@ -493,7 +493,7 @@ key()
 			;;
 
 		*)
-			echo "Unknown command '$1'" >&2
+			echo "Unknown command '$CMD_'" >&2
 			usage
 			exit 1
 			;;
