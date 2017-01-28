@@ -9,65 +9,103 @@ To put it there, you can run `sudo make install`.
 
 ## Synopsis
 ```
-usage:
 ./gsb.sh [-v|--verbose] [-i|--inactive]
-	[-q|--quota MB]				repo {ls|add|disable|rm} REPO
-	[-s|--ssh-key KEY] [-k|--key-file FILE]	user {ls|add|disable|rm} USER
-	[-r|--read-only]			auth {ls|add|rm} USER REPO
+[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
+			user	{ls|add|disable|rm}	USER
+			key	{ls|add|rm}		USER KEY
+[-w|--write]		auth	{ls|add|rm}		USER REPO
+
+Field definition (RegEx):
+REPO	:=	'[a-zA-Z_-]+'
+USER	:=	'[a-zA-Z_-]+'
+KEY	:=	'ssh-[rd]sa \S+ \S+' || {filename}
 
 NOTES:
 	- script should be run with root privileges.
-	- KEY should be quoted.
-	- space characters in repo names are a very bad idea
+	- KEY must be quoted (or must be a file)
+	- quotas not implemented yet
 ```
 
 ## Examples
 
-Create new repo "some_idea", create a new user "potter" and give them RW access to it,
-	then change your mind and give them read-only access:
+Working with repos:
 ```
+$ sudo gsb.sh repo ls
+$
 $ sudo gsb.sh repo add some_idea
-/usr/src/git/some_idea /home/ubuntu/git-shell_bind
+/usr/src/git/some_idea ~/github_repos/git-shell_bind
 Initialized empty Git repository in /usr/src/git/some_idea/
-Adding group `git_some_idea' (GID 1014) ...
+Adding group `git_some_idea' (GID 1044) ...
 Done.
 $
-$ sudo gsb.sh -k ./id_rsa_potter.pub user add potter
+$ sudo gsb.sh repo ls
+some_idea
+$
+```
+
+Working with users and keys:
+```
+$ sudo gsb.sh user ls
+$
+$ sudo gsb.sh user add potter
 Adding user `potter' ...
-Adding new group `potter' (1027) ...
+Adding new group `potter' (1043) ...
 Adding new user `potter' (1007) with group `potter' ...
 Creating home directory `/home/potter' ...
 Copying files from `/etc/skel' ...
 $
-$ sudo gsb.sh -w auth add potter some_idea
-/usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
+$ sudo gsb.sh user ls
+potter
 $
+$ sudo gsb.sh key ls potter
+potter
+$
+$ sudo gsb.sh key add potter /some/path/potter.pub
+$
+$ sudo bash -x gsb.sh key add potter ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXZRpzaG4A0q6z3YPZbqaCZFcXtWztSz0za2ZmJejdH+bqdwDaQK7CLg+9ohNFKcUSue9GjgodcP0TXvvRq8ZNC6Po/DrV5OShT2znbwdRU/rL3ydsOJL5NQX4XOwXeQgx+NgugjtHVoBnYpiHhkuLazMcqOIhITKkBlllj+oi8NR74BQdsadhOOAzCy8UarFWMz86RC5U57QbehPVIxBdoa7CY76u8rTSuPXySdLS1PpIfiwNAVTXx7QwsrZWHvs3q8Wy3Q6qJDmGIhJXgT+R73Fej+XNWqzYxc0wIh26XvCYj9LOTOwL+IEaohfdXvBonfTwWQOd6bXs1YsEWp9D potter@hogwarts
+$
+$ sudo gsb.sh key ls potter
+potter
+	ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB... potter@somewhere
+	ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB... potter@hogwarts
+$
+```
+
+Authorize a repo for a user:
+```
 $ sudo gsb.sh auth add potter some_idea
-Removing user `potter' from group `git_some_idea' ...
-Done.
+/usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
+$ 
+$ echo "whoops, that was read-only. let's make it writeable"
+"whoops, that was read-only. let's make it writeable"
+$
+$ sudo gsb.sh -w auth add potter some_idea
 /usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
 $
 ```
 
-This repo can now be cloned by the owner of the corresponding private key with:
+The above git repo can now be cloned (from Potter's machine):
 ```
 git clone ssh://potter@[server]/~/some_idea
 ```
 
 To list active repos, users and authorizations, use `ls` (which allows filtering):
 ```
-$ sudo gsb.sh repo ls
+$ sudo gsb.sh repo ls idea
 some_idea
 $
-$ sudo gsb.sh user ls
+$ sudo gsb.sh user ls pott
 potter
 $
-$ sudo gsb.sh auth ls some_idea
+$ sudo gsb.sh auth ls "some_idea.*potter"
 some_idea  potter
 $
+$ echo "gsb matches with RegEx, NOT globbing. A simple '*' won't work:"
+"gsb matches with RegEx, NOT globbing. A simple '*' won't work:"
+$
+$ sudo gsb.sh auth ls "some_idea*potter"
+$
 ```
-
-That last gets only the authorizations for `some_idea`.
 
 Repos and users can be disabled, after which they will show up when the `-i`
 	flag is used on `ls`:
@@ -123,7 +161,6 @@ Read-only users are not added to the group, but only have the bind mount.
 
 ## TODO
 - Quotas on .git repos (to stop users from crashing server)
-- simple user-SSH-key manipulation
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing

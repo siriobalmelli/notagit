@@ -15,13 +15,14 @@ $0 [-v|--verbose] [-i|--inactive]
 	[-w|--write]		auth	{ls|add|rm}		USER REPO
 
 Field definition (RegEx):
-REPO	:=	\'$REPO_VAL\'
-USER	:=	\'$USER_VAL\'
-KEY	:=	\'$KEY_VAL\' || {filename}
+REPO	:=	'$REPO_VAL'
+USER	:=	'$USER_VAL'
+KEY	:=	'$KEY_VAL' || {filename}
 
 NOTES:
 	- script should be run with root privileges.
 	- KEY must be quoted (or must be a file)
+	- quotas not implemented yet
 " >&2
 }
 
@@ -440,20 +441,25 @@ key()
 	# user must exist and be inactive/enabled according to '-i' flag
 	if ! user_exists_ "$2"; then exit 1; fi
 
+	 #because key may show up as multiple fields
+	CMD_="$1";
+	USR_="$2";
+	shift; shift
+
 	# Try and parse KEY_ either:
 	#+		- from command line directly
 	#+		- from a file
 	#+		- from USER's existing authorized_keys
 	#+	... using KEY_VAL as the validation RegEx in all cases.
 	KEY_=
-	if echo "$3" | grep -E "$KEY_VAL" >/dev/null; then
-		KEY_="$3"
+	if echo "$*" | grep -E "$KEY_VAL" >/dev/null; then
+		KEY_="$(echo "$*" |  sed -rn "s/.*($KEY_VAL).*/\1/p")"
 	elif [[ -e "$3" ]]; then
 		KEY_=$(sed -rn "s|($KEY_VAL)|\1|p" "$3")
 	else
 		# Apparently illogical pipe of grep through sed
 		#+	because '$3' likely contains '+' and '/' chars.
-		KEY_="$(grep "$3" /home/$2/$COND_ | sed -rn "s/.*($KEY_VAL).*/\1/p")"
+		KEY_="$(grep "$3" /home/$USR_/$COND_ | sed -rn "s/.*($KEY_VAL).*/\1/p")"
 	fi
 	# validate obtained key
 	if ! echo "$KEY_" | grep -E "$KEY_VAL" >/dev/null; then
@@ -462,28 +468,28 @@ key()
 		exit 1
 	fi
 
-	case $1 in
+	case $CMD_ in
 		#	add
-		# Add $KEY_ to user $2
+		# Add $KEY_ to user $USR_
 		new|add|en|enable)
 			echo "no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc $KEY_" \
-				>> "/home/$2/$COND_"
+				>> "/home/$USR_/$COND_"
 			poop=$?; if (( $poop )); then exit $poop; fi
 			# sort and de-dup keys
-			sort -u -o "/home/$2/$COND_" "/home/$2/$COND_"
+			sort -u -o "/home/$USR_/$COND_" "/home/$USR_/$COND_"
 			# ssh directory is kosher
-			user_ssh_perms_ "$2"
+			user_ssh_perms_ "$USR_"
 			;;
 
 		#	rem
-		# Rem $KEY_ from user $2
+		# Rem $KEY_ from user $USR_
 		rm|rem|del|delete)
 			# Avoid 'sed -i' because it will barf on "+" and "/" characters
 			#+	in the key itself.
-			grep -v "$KEY_" "/home/$2/$COND_" >"/home/$2/${COND_}.temp"
-			mv "/home/$2/${COND_}.temp" "/home/$2/$COND_"
+			grep -v "$KEY_" "/home/$USR_/$COND_" >"/home/$USR_/${COND_}.temp"
+			mv "/home/$USR_/${COND_}.temp" "/home/$USR_/$COND_"
 			# ssh directory is kosher
-			user_ssh_perms_ "$2"
+			user_ssh_perms_ "$USR_"
 			;;
 
 		*)
