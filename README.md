@@ -11,9 +11,9 @@ To put it there, you can run `sudo make install`.
 ```
 ./gsb.sh [-v|--verbose] [-i|--inactive]
 [-q|--quota MB]   repo	{ls|add|disable|rm}	REPO
-		  user	{ls|add|disable|rm}	USER
-		  key	{ls|add|rm}		USER KEY
-[-w|--write]	  auth	{ls|add|rm}		USER REPO
+                  user	{ls|add|disable|rm}	USER
+                  key	{ls|add|rm}		USER KEY
+[-w|--write]      auth	{ls|add|rm}		USER REPO
 
 Field definition (RegEx):
 REPO	:=	'[a-zA-Z_-]+'
