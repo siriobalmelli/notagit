@@ -10,10 +10,10 @@ To put it there, you can run `sudo make install`.
 ## Synopsis
 ```
 ./gsb.sh [-v|--verbose] [-i|--inactive]
-[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
-			user	{ls|add|disable|rm}	USER
-			key	{ls|add|rm}		USER KEY
-[-w|--write]		auth	{ls|add|rm}		USER REPO
+[-q|--quota MB]   repo	{ls|add|disable|rm}	REPO
+		  user	{ls|add|disable|rm}	USER
+		  key	{ls|add|rm}		USER KEY
+[-w|--write]	  auth	{ls|add|rm}		USER REPO
 
 Field definition (RegEx):
 REPO	:=	'[a-zA-Z_-]+'
@@ -100,8 +100,8 @@ $
 $ sudo gsb.sh auth ls "some_idea.*potter"
 some_idea  potter
 $
-$ echo "gsb matches with RegEx, NOT globbing. A simple '*' won't work:"
-"gsb matches with RegEx, NOT globbing. A simple '*' won't work:"
+$ echo "gsb matches with RegEx, NOT globbing. A simple '*' won't work"
+"gsb matches with RegEx, NOT globbing. A simple '*' won't work"
 $
 $ sudo gsb.sh auth ls "some_idea*potter"
 $
