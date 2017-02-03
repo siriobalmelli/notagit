@@ -266,7 +266,7 @@ user_umount_()
 user_exists_()
 {
 	# user must exist and must have the proper shell
-	if ! getent passwd | grep "$1.*git-shell" >/dev/null; then
+	if ! getent passwd | grep -E "^$1:.*git-shell$" >/dev/null; then
 		echo "user '$1' doesn't exist or doesn't log into git-shell" >&2
 		return 1
 	fi
