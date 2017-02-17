@@ -555,7 +555,7 @@ auth()
 			#+	use 'while' to ensure its printed either way.
 			# NOTE that we insert a commented-out entry if user is disabled/inactive
 			while ! grep -E "/home/$2/$3" /etc/fstab; do
-				printf "${INACTIVE_}$REPO_BASE/$3\t/home/$2/$3\tnone\tbind,noexec\t0\t0" >>/etc/fstab
+				printf "${INACTIVE_}$REPO_BASE/$3\t/home/$2/$3\tnone\tbind,noexec,nobootwait\t0\t0" >>/etc/fstab
 				sort -o /etc/fstab /etc/fstab
 			done
 			# update mounts
