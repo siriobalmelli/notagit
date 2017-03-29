@@ -335,7 +335,7 @@ user()
 		# An active user can ONLY log in via SSH, to a git-shell.
 		new|add|en|enable)
 			# if no user, create
-			if ! getent passwd | grep $2 >/dev/null; then
+			if ! getent passwd $2 >/dev/null; then
 				adduser --shell /usr/bin/git-shell --disabled-password --gecos "" "$2"
 			# otherwise, force git-shell
 			else
@@ -508,13 +508,26 @@ key()
 auth()
 {
 	# 	list
-	# Show either active or inactive authorizations, user $2 as a filter
+	# Show either active or inactive authorizations, use $2 as a filter
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		if [[ ! $INACTIVE_ ]]; then
-			sed -rn 's|^\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1  \2|p' /etc/fstab | grep "$2"
+			ARR=( $(sed -rn 's|^\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
+					| grep "$2") )
 		else
-			sed -rn 's|^\s*#\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1  \2|p' /etc/fstab | grep "$2"
+			ARR=( $(sed -rn 's|^\s*#\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
+					| grep "$2") )
 		fi
+		# print, marking write-enabled auths with 'w'
+		for i in ${ARR[@]}; do
+			# Apologies for making the delimiter '/', but it's the ONE character
+			#+	I'm sure won't show up in either repo or user names.
+			if getent group git_${i/%\/*/} | grep ${i/#*\//} >/dev/null; then
+				W="w"
+			else
+				W=""
+			fi
+			printf "${i/%\/*/} ${i/#*\//} $W\n"
+		done | column -t
 		return 0
 	fi
 
