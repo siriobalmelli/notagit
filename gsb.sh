@@ -106,6 +106,9 @@ check_platform()
 		echo "WARNING: your ssh server allows password logins. Please consider disabling this." >&2
 	fi
 	#TODO verify REPO_BASE exists on an FS mounted with quotas and "noexec"
+
+	# force a remount, just in case filesystem was being weird
+	mount -a
 }
 
 
