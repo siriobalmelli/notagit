@@ -96,18 +96,18 @@ fi
 repo_exists_()
 {
 	# ignore null input
-	if [[ -n "$1" ]]; then return 1; fi
+	if [[ -z "$1" ]]; then return 1; fi
 
 	# verify toplevel dir exists
 	if [[ ! -d "$REPO_BASE/$1" ]]; then
-		if [[ -n "$2" ]]; then
+		if [[ -z "$2" ]]; then
 			echo "Repo '$1' doesn't exist. Cannot archive" >&2
 		fi
 		return 1
 	fi
 	# verify it is, in fact, a git repo
 	if [[ ! -e "$REPO_BASE/$1/HEAD" ]]; then
-		if [[ -n "$2" ]]; then
+		if [[ -z "$2" ]]; then
 			echo "'$REPO_BASE/$1' exists but is not a valid Git repo" >&2
 		fi
 		return 1
@@ -137,23 +137,23 @@ user_umount_()
 user_exists_()
 {
 	# ignore null input
-	if [[ -n "$1" ]]; then return 1; fi
+	if [[ -z "$1" ]]; then return 1; fi
 
 	# user must exist and must have the proper shell
 	if ! getent passwd | grep -E "^$1:.*git-shell$" >/dev/null; then
-		if [[ -n "$2" ]]; then
+		if [[ -z "$2" ]]; then
 			echo "user '$1' doesn't exist or doesn't log into git-shell" >&2
 		fi
 		return 1
 	fi
 	# if INACTIVE_ then user MUST be inactive, and vice-versa
 	if [[ "$INACTIVE_" && ! -e "/home/$1/.ssh/disabled" ]]; then
-		if [[ -n "$2" ]]; then
+		if [[ -z "$2" ]]; then
 			echo "'-i|--inactive' set but user '$1' not disabled"
 		fi
 		return 1
 	elif [[ ! "$INACTIVE_" && -e "/home/$1/.ssh/disabled" ]]; then
-		if [[ -n "$2" ]]; then
+		if [[ -z "$2" ]]; then
 			echo "no flag '-i|--inactive' but user '$1' disabled"
 		fi
 		return 1
