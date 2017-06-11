@@ -84,6 +84,111 @@ else
 fi
 
 
+
+
+##########################################################
+##			repo utilities			##
+##########################################################
+
+#	repo_exists_()
+#		$1	:	REPO
+#		$2	:	quiet? (use as internal function, don't output errors)
+repo_exists_()
+{
+	# ignore null input
+	if [[ -n "$1" ]]; then return 1; fi
+
+	# verify toplevel dir exists
+	if [[ ! -d "$REPO_BASE/$1" ]]; then
+		if [[ -n "$2" ]]; then
+			echo "Repo '$1' doesn't exist. Cannot archive" >&2
+		fi
+		return 1
+	fi
+	# verify it is, in fact, a git repo
+	if [[ ! -e "$REPO_BASE/$1/HEAD" ]]; then
+		if [[ -n "$2" ]]; then
+			echo "'$REPO_BASE/$1' exists but is not a valid Git repo" >&2
+		fi
+		return 1
+	fi
+
+	return 0
+}
+
+
+
+
+##########################################################
+##			user utilities			##
+##########################################################
+
+#	user_umount_()
+#		$1	:	USER
+# Internal utility: unmount all repos for a certain user
+user_umount_()
+{
+	mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $DBG_ {}
+}
+
+#	user_exists_()
+#		$1	:	USER
+#		$2	:	quiet? (use as internal function, don't output errors)
+user_exists_()
+{
+	# ignore null input
+	if [[ -n "$1" ]]; then return 1; fi
+
+	# user must exist and must have the proper shell
+	if ! getent passwd | grep -E "^$1:.*git-shell$" >/dev/null; then
+		if [[ -n "$2" ]]; then
+			echo "user '$1' doesn't exist or doesn't log into git-shell" >&2
+		fi
+		return 1
+	fi
+	# if INACTIVE_ then user MUST be inactive, and vice-versa
+	if [[ "$INACTIVE_" && ! -e "/home/$1/.ssh/disabled" ]]; then
+		if [[ -n "$2" ]]; then
+			echo "'-i|--inactive' set but user '$1' not disabled"
+		fi
+		return 1
+	elif [[ ! "$INACTIVE_" && -e "/home/$1/.ssh/disabled" ]]; then
+		if [[ -n "$2" ]]; then
+			echo "no flag '-i|--inactive' but user '$1' disabled"
+		fi
+		return 1
+	fi
+
+	return 0
+}
+
+#	user_ssh_perms_()
+#		$1	:	USER
+user_ssh_perms_()
+{
+	# mark user changed
+	touch "/home/$1/$COND_"
+		poop=$?; if (( $poop )); then exit $poop; fi
+
+	# force ownership and permissions
+	chown $DBG_ -R "$1": "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	# force ownership and permissions
+	chown $DBG_ -R "$1": "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
+		poop=$?; if (( $poop )); then exit $poop; fi
+}
+
+
+
+
+##########################################################
+##			generic utilities		##
+##########################################################
+
 #	check_platform()
 #
 # Verify that all required platform components are copacetic
@@ -106,29 +211,33 @@ check_platform()
 		echo "WARNING: your ssh server allows password logins. Please consider disabling this." >&2
 	fi
 	#TODO verify REPO_BASE exists on an FS mounted with quotas and "noexec"
-
-	# force a remount, just in case filesystem was being weird
-	mount -a
 }
 
-
-#	repo_exists_()
-#		$1	:	REPO
-repo_exists_()
+#	mount_refresh_()
+#		$1	:	USER | REPO
+#
+# Cleanest way to make sure permissions changes are propagated and
+#	weird corner cases are avoided.
+mount_refresh_()
 {
-	# verify toplevel dir exists
-	if [[ ! -d "$REPO_BASE/$1" ]]; then
-		echo "Repo '$1' doesn't exist. Cannot archive" >&2
-		return 1
-	fi
-	# verify it is, in fact, a git repo
-	if [[ ! -e "$REPO_BASE/$1/HEAD" ]]; then
-		echo "'$REPO_BASE/$1' exists but is not a valid Git repo" >&2
-		return 1
+	# Unmounts any instances connected to '$1'
+	if user_exists_ "$1" "quiet"; then
+		mount | grep "/home/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f {}
+	elif repo_exists_ "$1" "quiet"; then
+		mount | grep "$REPO_BASE/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f {}
 	fi
 
-	return 0
+	# mount things according to fstab
+	mount -a $DBG_
+		poop=$?; if (( $poop )); then exit $poop; fi
 }
+
+
+
+
+##########################################################
+##			primary functions 		##
+##########################################################
 
 #	repo()
 #
@@ -215,7 +324,7 @@ repo()
 				poop=$?; if (( $poop )); then exit $poop; fi
 
 			# refresh mounts
-			mount -a $DBG_
+			mount_refresh_ "$2"
 			;;
 
 		#	disable
@@ -278,53 +387,6 @@ repo()
 }
 
 
-#	user_umount_()
-#		$1	:	USER
-# Internal utility: unmount all repos for a certain user
-user_umount_()
-{
-	mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $DBG_ {}
-}
-#	user_exists_()
-#		$1	:	USER
-user_exists_()
-{
-	# user must exist and must have the proper shell
-	if ! getent passwd | grep -E "^$1:.*git-shell$" >/dev/null; then
-		echo "user '$1' doesn't exist or doesn't log into git-shell" >&2
-		return 1
-	fi
-	# if INACTIVE_ then user MUST be inactive, and vice-versa
-	if [[ "$INACTIVE_" && ! -e "/home/$1/.ssh/disabled" ]]; then
-		echo "'-i|--inactive' set but user '$1' not disabled"
-		return 1
-	elif [[ ! "$INACTIVE_" && -e "/home/$1/.ssh/disabled" ]]; then
-		echo "no flag '-i|--inactive' but user '$1' disabled"
-		return 1
-	fi
-
-	return 0
-}
-#	user_ssh_perms_()
-#		$1	:	USER
-user_ssh_perms_()
-{
-	# mark user changed
-	touch "/home/$1/$COND_"
-		poop=$?; if (( $poop )); then exit $poop; fi
-
-	# force ownership and permissions
-	chown $DBG_ -R "$1": "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	# force ownership and permissions
-	chown $DBG_ -R "$1": "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-}
-
 #	user()
 #		$1	:	{ls|add|disable|rem}
 #		$2	:	USER
@@ -385,7 +447,7 @@ user()
 			sed -i"" -r 's|^#('"$REPO_BASE"'.*/home/'"$2"'.*)|\1|g' /etc/fstab
 			sort -o /etc/fstab /etc/fstab
 			# update mounts
-			mount -a $DBG_
+			mount_refresh_ "$2"
 			;;
 
 		#	disable
@@ -592,9 +654,7 @@ auth()
 				sort -o /etc/fstab /etc/fstab
 			done
 			# update mounts
-			umount -f "/home/$2/$3" 2>/dev/null # be certain: force remount
-			mount -a $DBG_
-				poop=$?; if (( $poop )); then exit $poop; fi
+			mount_refresh_ "$3"
 			;;
 
 		#	rem
@@ -622,9 +682,12 @@ auth()
 }
 
 
-##
-# 	main
-##
+
+
+##########################################################
+##			main				##
+##########################################################
+
 check_platform
 case $1 in
 repo)
