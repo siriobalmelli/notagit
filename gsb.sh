@@ -138,6 +138,10 @@ repo()
 		usage
 		exit 1
 	fi
+	if getent passwd "$2" || getent group "$2"; then
+		echo "repo cannot be named identically to a user or group" >&2
+		exit 1
+	fi
 
 	# force existence of REPO and ARCH
 	mkdir -p $DBG_ "$REPO_BASE" "$ARCH_BASE"
