@@ -259,7 +259,8 @@ repo()
 		# list them
 		find "$SEARCH_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
 				-exec basename '{}' \; \
-			| grep "$2"
+			| grep "$2" \
+			| sort
 		return $?
 	fi
 
