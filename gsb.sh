@@ -250,13 +250,17 @@ repo()
 	# 	list
 	# Show either active or inactive repos, user $2 as a filter string
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
+		# list active or inactive repos?
 		if [[ ! $INACTIVE_ ]]; then
-			ls -1 -A --ignore="lost+found" "$REPO_BASE" | grep "$2"
-			return $?
+			SEARCH_="$REPO_BASE"
 		else
-			ls -1 -A --ignore="lost+found" --ignore="*.mounts" "$ARCH_BASE" | grep "$2"
-			return $?
+			SEARCH_="$ARCH_BASE"
 		fi
+		# list them
+		find "$SEARCH_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
+				-exec basename '{}' \; \
+			| grep "$2"
+		return $?
 	fi
 
 	# all other invocations besides "list" require REPO
