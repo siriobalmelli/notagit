@@ -112,6 +112,24 @@ check_platform()
 }
 
 
+#	repo_exists_()
+#		$1	:	REPO
+repo_exists_()
+{
+	# verify toplevel dir exists
+	if [[ ! -d "$REPO_BASE/$1" ]]; then
+		echo "Repo '$1' doesn't exist. Cannot archive" >&2
+		return 1
+	fi
+	# verify it is, in fact, a git repo
+	if [[ ! -e "$REPO_BASE/$1/HEAD" ]]; then
+		echo "'$REPO_BASE/$1' exists but is not a valid Git repo" >&2
+		return 1
+	fi
+
+	return 0
+}
+
 #	repo()
 #
 #		$1	:	{ls|add|archive|exhume}
@@ -206,10 +224,7 @@ repo()
 		# NOTE that some mountpoints may have been DISABLED, we need to preserve this.
 		dis|disable)
 			# verify repo exists in the first place
-			if [[ ! -d "$REPO_BASE/$2" ]]; then
-				echo "Repo '$2' doesn't exist. Cannot archive" >&2
-				exit 1
-			fi
+			if ! repo_exists_ "$2"; then exit 1; fi
 
 			# verify no archived project by the same name
 			if [[ -d "$ARCH_BASE/$2" ]]; then
@@ -230,6 +245,8 @@ repo()
 		#	rem
 		# Remove a repo entirely; whether archived or active
 		rm|rem|del|delete)
+			if ! repo_exists_ "$2"; then exit 1; fi
+
 			# purge mounts
 			repo purge_mounts $2
 			# remove all mount dirs
@@ -548,12 +565,8 @@ auth()
 
 	# user must exist and be inactive/enabled according to '-i' flag
 	if ! user_exists_ "$2"; then exit 1; fi
-
 	# repo must exist
-	if [[ ! -d "$REPO_BASE/$3" ]]; then
-		echo "repo '$3' doesn't exist" >&2
-		exit 1
-	fi
+	if ! repo_exists_ "$3"; then exit 1; fi
 
 	case $1 in
 		#	add
@@ -579,6 +592,7 @@ auth()
 				sort -o /etc/fstab /etc/fstab
 			done
 			# update mounts
+			umount -f "/home/$2/$3" 2>/dev/null # be certain: force remount
 			mount -a $DBG_
 				poop=$?; if (( $poop )); then exit $poop; fi
 			;;
