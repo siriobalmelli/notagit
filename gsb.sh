@@ -198,7 +198,7 @@ repo()
 			fi
 
 			# make sure repo-specific group exists
-			if ! getent group | grep "git_$2$" >/dev/null; then
+			if ! getent group "git_$2" >/dev/null; then
 				addgroup --force-badname "git_$2"
 					poop=$?; if (( $poop )); then exit $poop; fi
 			fi
