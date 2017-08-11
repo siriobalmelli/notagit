@@ -71,7 +71,7 @@ run_die git fetch "$REMOTE" "$REMOTE_BRANCH"
 # Merge only if we are BEHIND remote (aka: merge will always work)
 # This is inspired by <https://github.com/simonthum/git-sync>,
 #+	thank you Simon Thum.
-DIFF="$(git rev-list --count --left-right $remote_name/$branch_name...HEAD)"
+DIFF="$(git rev-list --count --left-right $REMOTE/$REMOTE_BRANCH...$LOCAL_BRANCH)"
 
 # crummy globbing to avoid any tab-vs-space weirdness between systems
 case "$DIFF" in
