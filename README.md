@@ -1,13 +1,16 @@
 # git-shell_bind
+
 A BASH script to administer GIT repos on a server, which are accessed via SSH only.
 
 ## Installation
+
 `gsb.sh` can be run from the directory where is was downloaded.
 
 On a production server, it probably belongs in `/usr/sbin`.
 To put it there, you can run `sudo make install`.
 
 ## Synopsis
+
 ```
 ./gsb.sh [-v|--verbose] [-i|--inactive]
 [-q|--quota MB]   repo	{ls|add|disable|rm}	REPO
@@ -29,6 +32,7 @@ NOTES:
 ## Examples
 
 Working with repos:
+
 ```
 $ sudo gsb.sh repo ls
 $
@@ -44,6 +48,7 @@ $
 ```
 
 Working with users and keys:
+
 ```
 $ sudo gsb.sh user ls
 $
@@ -72,10 +77,11 @@ $
 ```
 
 Authorize a repo for a user:
+
 ```
 $ sudo gsb.sh auth add potter some_idea
 /usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
-$ 
+$
 $ echo "whoops, that was read-only. let's make it writeable"
 "whoops, that was read-only. let's make it writeable"
 $
@@ -85,11 +91,13 @@ $
 ```
 
 The above git repo can now be cloned (from Potter's machine):
+
 ```
 git clone ssh://potter@[server]/~/some_idea
 ```
 
 To list active repos, users and authorizations, use `ls` (which allows filtering):
+
 ```
 $ sudo gsb.sh repo ls idea
 some_idea
@@ -109,6 +117,7 @@ $
 
 Repos and users can be disabled, after which they will show up when the `-i`
 	flag is used on `ls`:
+
 ```
 $ sudo gsb.sh user disable potter
 $
@@ -126,6 +135,7 @@ $
 NOTE that an `auth` CANNOT be disabled; it can only be added or removed.
 However, when a `user` or `repo` is disabled, all of their authorizations are saved,
 	and restored when the `user` or `repo` is once again enabled:
+
 ```
 $ sudo gsb.sh user add potter
 $
@@ -136,9 +146,10 @@ some_idea  potter
 $
 ```
 
-
 ## Architecture
-A `repo` is a directory inside `/usr/src/git`, which is owned by `nobody` and a repo-specific system group.
+
+A `repo` is a directory inside `/usr/src/git`, which is owned by `nobody`
+	and a repo-specific system group.
 The parent directory `/usr/src/git` is owned by root and not readable by others.
 
 A `user` is a system user with public-key SSH access ONLY into a /usr/bin/git-shell,
@@ -151,29 +162,29 @@ A user authorized to access a repo is:
 
 Read-only users are not added to the group, but only have the bind mount.
 
-
 ## Technical Motivation
 
 -	Security
 -	Simplicity
 -	Use existing mechanisms only: no new (bug-prone) code
 
-
 ## TODO
+
 - Show '-w' flag on `gsb.sh auth ls`
 - Quotas on .git repos (to stop users from crashing server)
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
 
+## pen test scenario
 
-# pen test scenario
 -	Repos: A, B, C
 -	User 1: rw repo A, r repo B
 -	User 2: rw repo A (disabled)
 -	User 3: rw all repos (key not given to pen tester)
 
-## User 1
+### User 1
+
 -	del repo A
 -	w repo B
 -	find repo C
@@ -182,10 +193,12 @@ Read-only users are not added to the group, but only have the bind mount.
 -	crash system
 -	find User 2, User 3
 
-## User 2
+### User 2
+
 -	log into system
 
-## Anonymous assailant
+### Anonymous assailant
+
 -	crash system
 -	snoop users
 -	snoop traffic
