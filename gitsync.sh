@@ -19,13 +19,14 @@ $0 [repo_dir] [local_branch] [remote] [remote_branch]" >&2
 #		$*	:	command sequence
 run_die()
 {
-	echo -e "\n\nEXEC: $*"
+	echo -e "EXEC: $*"
 	/bin/bash -c "$*"
 	poop=$?
 	if (( $poop )); then
 		echo "failed: $*" >&2
 		exit $poop
 	fi
+	echo
 }
 
 
@@ -46,7 +47,7 @@ REMOTE_BRANCH=$4
 
 # sanity check local repo
 run_die pushd "$REPO_DIR"
-if ! git rev-parse --is-inside-work-tree; then
+if ! git rev-parse --is-inside-work-tree >/dev/null; then
 	echo "'$REPO_DIR' is not a git work tree" >&2
 	exit 1
 fi
@@ -54,6 +55,7 @@ STAT=( $(git status -bs) ) # a successful stat looks like: '## [LOCAL_BRANCH]'
 if [[ ${#STAT[@]} != 2 ]]; then
 	echo "git repo $(pwd) is dirty:" >&2
 	git status >&2
+	exit 1
 fi
 # don't checkout another branch - user may be working (!)
 if [[ "${STAT[1]}" != "$LOCAL_BRANCH" ]]; then
@@ -64,30 +66,25 @@ fi
 
 # fetch remote
 run_die git fetch "$REMOTE" "$REMOTE_BRANCH"
-# Merge only if we are ahead (aka: merge will always work)
-# This is taken from <https://github.com/simonthum/git-sync>,
-#+	thank you to Simon Thum.
+# Merge only if we are BEHIND remote (aka: merge will always work)
+# This is inspired by <https://github.com/simonthum/git-sync>,
+#+	thank you Simon Thum.
 DIFF="$(git rev-list --count --left-right $remote_name/$branch_name...HEAD)"
 
+# crummy globbing to avoid any tab-vs-space weirdness between systems
 case "$DIFF" in
-	"") 		# no upstream
-	    ;;
-	"0	0")	# equal, no merge necessary
-	    ;;
-	"0	"*)
-	    echo "ahead"
-	    true
-	    ;;
-	*"	0")
-	    echo "behind"
-	    true
-	    ;;
+	# no upstream
+	"")	;;
+	# equal or ahead: no merge necessary
+	"0"*)	;;
+	# behind: merge
+	# don't rebase, merge: user may have 'post-merge' githooks
+	*[^0-9]"0")
+		run_die git merge "$REMOTE" "$REMOTE_BRANCH"
+		;;
+	# anything else: trouble
 	*)
-	    echo "diverged"
-	    true
-	    ;;
+		echo "$REPO_DIR : branch $LOCAL_BRANCH has diverged from $REMOTE/$REMOTE_BRANCH" >&2
+		exit 1
+		;;
 esac
-
-
-# back to where we came from
-popd
