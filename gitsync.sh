@@ -75,10 +75,12 @@ DIFF="$(git rev-list --count --left-right $REMOTE/$REMOTE_BRANCH...$LOCAL_BRANCH
 
 # crummy globbing to avoid any tab-vs-space weirdness between systems
 case "$DIFF" in
-	# no upstream
-	"")	;;
-	# equal or ahead: no merge necessary
-	"0"*)	;;
+	"")
+		echo "no upstream"
+		;;
+	"0"*)
+		echo "we are equal or ahead: no merge necessary"
+		;;
 	# behind: merge
 	# don't rebase, merge: user may have 'post-merge' githooks
 	*[^0-9]"0")
