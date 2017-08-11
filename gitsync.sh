@@ -79,7 +79,7 @@ case "$DIFF" in
 		echo "no upstream"
 		;;
 	"0"*)
-		echo "$(pwd) : $LOCAL_BRANCH equal or ahead of $REMOTE/$REMOTE_BRANCH"
+		echo "$(pwd) : '$LOCAL_BRANCH' equal or ahead of $REMOTE/$REMOTE_BRANCH"
 		;;
 	# behind: merge
 	# don't rebase, merge: user may have 'post-merge' githooks
@@ -88,7 +88,7 @@ case "$DIFF" in
 		;;
 	# anything else: trouble
 	*)
-		echo "$(pwd) : $LOCAL_BRANCH has diverged from $REMOTE/$REMOTE_BRANCH" >&2
+		echo "$(pwd) : '$LOCAL_BRANCH' has diverged from $REMOTE/$REMOTE_BRANCH" >&2
 		exit 1
 		;;
 esac
