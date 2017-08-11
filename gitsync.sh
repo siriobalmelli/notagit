@@ -51,15 +51,17 @@ if ! git rev-parse --is-inside-work-tree >/dev/null; then
 	echo "'$REPO_DIR' is not a git work tree" >&2
 	exit 1
 fi
-STAT=( $(git status -bs) ) # a successful stat looks like: '## [LOCAL_BRANCH]'
-if [[ ${#STAT[@]} != 2 ]]; then
-	echo "git repo $(pwd) is dirty:" >&2
-	git status >&2
+# bail if not in correct branch - user may be working!
+BRANCH=$(git branch | cut -d ' ' -f 2)
+if [[ "$BRANCH" != "$LOCAL_BRANCH" ]]; then
+	echo "branch $BRANCH != requested $LOCAL_BRANCH" >&2
 	exit 1
 fi
-# don't checkout another branch - user may be working (!)
-if [[ "${STAT[1]}" != "$LOCAL_BRANCH" ]]; then
-	echo "branch ${STAT[1]} != requested $LOCAL_BRANCH" >&2
+# bail if uncommitted changes
+STAT=$(git status -s)
+if [[ $STAT ]]; then
+	echo "git repo $(pwd) is dirty:" >&2
+	git status >&2
 	exit 1
 fi
 
