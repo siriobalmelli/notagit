@@ -175,6 +175,7 @@ Read-only users are not added to the group, but only have the bind mount.
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
+- Document `gitsync.sh`
 
 ## pen test scenario
 
