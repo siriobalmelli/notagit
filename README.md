@@ -27,10 +27,11 @@ See the [gsb.sh documentation](docs/gsb.md).
 
 ... *safely*.
 
-There seems to be no tool for this.
+There seems to be no tool for this; especially one which handles bare
+	repos (synchronizing servers between each other).
 
 This is requires care when development/commits may be happening in either
-	(or both) locations and the wish is to **avoid** merges.
+	(or both) locations and the wish is to **avoid** any unexpected behavior.
 
 Use this script (e.g. as a `cron` job) to:
 
