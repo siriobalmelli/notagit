@@ -7,7 +7,8 @@ order: 10
 
 A BASH script to administer GIT repos on a server, which are accessed via SSH only.
 
-This documentation as a [web page](https://siriobalmelli.github.io/git-shell_bind/)
+-	[Repository](https://github.com/siriobalmelli/git-shell_bind)
+-	[Documentation](https://siriobalmelli.github.io/git-shell_bind/)
 
 ## Why
 
