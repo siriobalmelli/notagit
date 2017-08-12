@@ -29,11 +29,14 @@ There seems to be no tool for this.
 
 This is requires care when development/commits may be happening in either
 	(or both) locations and the wish is to **avoid** merges.
+
 Use this script (e.g. as a `cron` job) to:
+
 -	syncronize multiple development machines in the background,
 		while you're working on any one of them.
 -	have a server pull changes from an upstream repo
 		(e.g. for CI work, using a `post-merge` hook)
+
 See the [gitsync.sh documentation](docs/gitsync.md).
 
 ## Installation
