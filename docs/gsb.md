@@ -1,5 +1,5 @@
 ---
-title: git-shell_bind
+title: gsb
 ---
 
 # gsb.sh

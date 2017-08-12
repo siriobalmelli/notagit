@@ -23,7 +23,7 @@ This is solved by [gsb.sh](./gsb.sh), which was thought up to be:
 
 See the [gsb.sh documentation](docs/gsb.md).
 
-### continuously updating a git repo from a remote source
+### Continuously updating a git repo from a remote source
 
 ... *safely*.
 
