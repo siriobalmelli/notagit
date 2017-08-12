@@ -9,13 +9,13 @@ INSTALL_DIR=/usr/sbin
 
 .PHONY: install uninstall
 install :
-	@for a in "$(SCRIPT)"; do \
-		if ! diff "$$a" "$(INSTALL_DIR)/$$a" >/dev/null; then \
-			cp -fv "$$a" "$(INSTALL_DIR)/"; \
+	@for a in $(SCRIPT); do \
+		if ! diff $$a $(INSTALL_DIR)/$$a >/dev/null; then \
+			cp -fv $$a $(INSTALL_DIR)/; \
 		fi; \
 	done
 
 uninstall :
-	@for a in "$(SCRIPT)"; do \
-		rm -fv "$(INSTALL_DIR)/$$a"; \
+	@for a in $(SCRIPT); do \
+		rm -fv $(INSTALL_DIR)/$$a; \
 	done
