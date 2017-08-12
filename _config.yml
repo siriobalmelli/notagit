@@ -1,0 +1,8 @@
+---
+theme: jekyll-theme-minimal
+
+title: 'Git-Shell Bind'
+description: 'Secure and Sensible git repo administration'
+
+markdown: kramdown
+...
