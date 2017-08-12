@@ -25,9 +25,13 @@
 		<nav>
 		{% assign sorted = site.pages | sort:"order" | reverse %}
 		{% for node in sorted %}
-			{% if node.url != '/' and node.title != nil and node.title != page.title %}
+			{% if node.url != '/' and node.title != nil %}
 				{% assign ur = site.baseurl | append: node.url %}
-				<li><a href="{{ ur }}">{{ node.title }}</a></li>
+				{% if node.title == page.title %}
+					<li><b><a class="active" href="{{ ur }}">{{ node.title }}</a></b></li>
+				{% else %}
+					<li><a href="{{ ur }}">{{ node.title }}</a></li>
+				{% endif %}
 			{% endif %}
 		{% endfor %}
 		</nav>
