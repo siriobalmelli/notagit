@@ -45,16 +45,32 @@ REMOTE=$3
 REMOTE_BRANCH=$4
 
 
-# sanity check local repo
+# verify existence of directory
 if [[ ! -d "$REPO_DIR" ]]; then
 	echo "'$REPO_DIR' is not a directory" >&2
 	exit 1
 fi
 pushd "$REPO_DIR"
-if ! git rev-parse --is-inside-work-tree >/dev/null; then
-	echo "'$REPO_DIR' is not a git work tree" >&2
+
+# Verify whether it's a git repo at all.
+if ! TYPE=$(git rev-parse --is-bare-repository); then
+	echo "'$REPO_DIR' is not a git repo" >&2
 	exit 1
 fi
+
+##
+# handle bare repo differently
+##
+if [[ $TYPE == 'true' ]]; then
+	# git fetch will refuse to do anything which is not a fast-forward
+	run_die git fetch $REMOTE $REMOTE_BRANCH:$LOCAL_BRANCH
+	exit 0
+fi
+
+
+##
+# handle working tree
+##
 # bail if not in correct branch - user may be working!
 BRANCH=$(git branch | cut -d ' ' -f 2)
 if [[ "$BRANCH" != "$LOCAL_BRANCH" ]]; then
