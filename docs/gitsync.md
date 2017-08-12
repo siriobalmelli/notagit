@@ -24,6 +24,14 @@ gitsync.sh [repo_dir] [local_branch] [remote] [remote_branch]
 gitsync.sh /some/repo master origin master
 ```
 
+Works with bare repos as well, no change in syntax:
+	(if you're not familiar: a bare repo is what a server stores,
+	you can't work inside it)
+
+```bash
+gitsync.sh /bare/repo master other_server master
+```
+
 ### As a `cron` job
 
 Using `crontab -e`:
