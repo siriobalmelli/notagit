@@ -46,7 +46,11 @@ REMOTE_BRANCH=$4
 
 
 # sanity check local repo
-run_die pushd "$REPO_DIR"
+if [[ ! -d "$REPO_DIR" ]]; then
+	echo "'$REPO_DIR' is not a directory" >&2
+	exit 1
+fi
+pushd "$REPO_DIR"
 if ! git rev-parse --is-inside-work-tree >/dev/null; then
 	echo "'$REPO_DIR' is not a git work tree" >&2
 	exit 1
