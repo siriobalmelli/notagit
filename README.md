@@ -64,7 +64,7 @@ Contributions are always welcome, in order of preference:
 Docs are written in [Markdown](https://daringfireball.net/projects/markdown/syntax)
 	and then auto-generated with [Jekyll](https://jekyllrb.com/).
 
-If you would like to hack on the doucumentation:
+If you would like to hack on the documentation:
 
 -	place any new files in the [docs](./docs) directory
 -	files should have an `.md` extension
