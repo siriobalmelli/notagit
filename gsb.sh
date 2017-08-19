@@ -516,7 +516,11 @@ key()
 			if [[ -e /home/$u/$COND_ ]]; then
 				# print user, and optionally contents of the proper auth_keys file
 				echo "$u"
-				sed -rn 's/.*(ssh-[rd]sa) \S+(\S{24}) (\S+)$/\t\1 ...\2 \3/p' /home/$u/$COND_
+				if [[ $DBG_ ]]; then
+					cat /home/$u/$COND_		
+				else
+					sed -rn 's/.*(ssh-[rd]sa) \S+(\S{24}) (\S+)$/\t\1 ...\2 \3/p' /home/$u/$COND_
+				fi
 			fi
 		done
 		return 0
