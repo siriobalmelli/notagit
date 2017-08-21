@@ -13,7 +13,9 @@ This makes the script safe to run automatically, even while you occasionally
 ## Synopsis
 
 ```
-gitsync.sh [repo_dir] [local_branch] [remote] [remote_branch]
+gitsync.sh [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH
+	-v	:	verbose: Print command output.
+			Default behavior is to only print errors.
 ```
 
 ## Examples

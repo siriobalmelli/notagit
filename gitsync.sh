@@ -10,7 +10,10 @@
 usage()
 {
 	echo -e "usage:
-$0 [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH" >&2
+$0 [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH
+	-v	:	verbose: Print command output.
+			Default behavior is to only print errors.
+" >&2
 }
 
 #	run_die()
