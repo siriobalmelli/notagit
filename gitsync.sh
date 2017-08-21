@@ -4,14 +4,13 @@
 #
 # Synchronize a git repository safely (safe to call from e.g. cron)
 
-
 #	usage()
 # Print usage to stderr
 #		$0	:	command name
 usage()
 {
 	echo -e "usage:
-$0 [repo_dir] [local_branch] [remote] [remote_branch]" >&2
+$0 [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH" >&2
 }
 
 #	run_die()
@@ -30,8 +29,17 @@ run_die()
 }
 
 
+# switches
+if [[ "$1" == "-v" ]]; then
+	shift
+else
+	# standard behavior: close stdout for rest of script
+	exec 1>/dev/null
+	echo "should NOT print"
+fi
+
 # system sanity
-run_die which git
+run_die which git >/dev/null
 
 # arguments
 if [[ $# != 4 ]]; then
@@ -96,7 +104,7 @@ DIFF="$(git rev-list --count --left-right $REMOTE/$REMOTE_BRANCH...$LOCAL_BRANCH
 # crummy globbing to avoid any tab-vs-space weirdness between systems
 case "$DIFF" in
 	"")
-		echo "no upstream"
+		echo "no upstream" >&2
 		;;
 	"0"*)
 		echo "$(pwd) : '$LOCAL_BRANCH' equal or ahead of $REMOTE/$REMOTE_BRANCH"
