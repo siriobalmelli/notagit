@@ -43,3 +43,11 @@ PATH=/usr/sbin:/usr/bin
 
 * * * * * gitsync.sh /home/joe/git-shell_bind master origin master
 ```
+
+Fancier: log to syslog:
+
+```bash
+PATH=/usr/sbin:/usr/bin
+
+* * * * * gitsync.sh /home/joe/git-shell_bind master origin master 2>&1 | logger -e -t gitsync
+```
