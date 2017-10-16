@@ -73,9 +73,10 @@ If you would like to hack on the documentation:
 
 ## TODO
 
-- migrate gsb to `getopt` for friendlier interface
+- migrate gsb to `getopt` for friendlier interface; auto-completion
 - Show '-w' flag on `gsb.sh auth ls`
 - Quotas on .git repos (to stop users from crashing server)
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
+- gitsync: sync ALL branches of remote repo (aka: backup)
