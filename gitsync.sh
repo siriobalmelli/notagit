@@ -85,7 +85,7 @@ fi
 # bail if not in correct branch - user may be working!
 BRANCH=$(git branch | cut -d ' ' -f 2)
 if [[ "$BRANCH" != "$LOCAL_BRANCH" ]]; then
-	echo "branch $BRANCH != requested $LOCAL_BRANCH" >&2
+	echo "$REPO_DIR: branch $BRANCH != requested $LOCAL_BRANCH" >&2
 	exit 1
 fi
 # bail if uncommitted changes
