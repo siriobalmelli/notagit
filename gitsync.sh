@@ -13,7 +13,7 @@ usage()
 $0 [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH
 	-v	:	verbose: Print command output.
 			Default behavior is to only print errors.
-" >&2
+$0 [-v] -b REPO_DIR REMOTE" >&2
 }
 
 #	run_die()
@@ -44,8 +44,26 @@ fi
 # system sanity
 run_die which git >/dev/null
 
+IS_BARE=false
+
+# getopts for -b REPO_DIR REMOTE
+# Don't pass REPO_DIR and REMOTE as args to '-b'
+while getopts ":b" opt; do
+	case "$opt" in
+		b)
+			IS_BARE=true	
+			;;
+		\?)
+			echo "Invalid option: $OPTARG" >&2
+			;;
+	esac
+done
+
 # arguments
-if [[ $# != 4 ]]; then
+if [[ $IS_BARE == false && $# != 4 ]]; then
+	usage $0
+	exit 1
+elif [[ $# != 3 ]]; then
 	usage $0
 	exit 1
 fi
@@ -55,6 +73,11 @@ LOCAL_BRANCH=$2
 REMOTE=$3
 REMOTE_BRANCH=$4
 
+# If its a bare repo to sync, reset the variables correctly
+if [[ $# == 3 ]]; then
+	REPO_DIR=$1
+	REMOTE=$2
+fi
 
 # verify existence of directory
 if [[ ! -d "$REPO_DIR" ]]; then
@@ -72,9 +95,15 @@ fi
 ##
 # handle bare repo differently
 ##
-if [[ $TYPE == 'true' ]]; then
-	# git fetch will refuse to do anything which is not a fast-forward
-	run_die git fetch $REMOTE $REMOTE_BRANCH:$LOCAL_BRANCH
+if [[ $IS_BARE == false && $TYPE == 'true' ]]; then
+	# error out, as we specified a non-bare repo to sync up and we've encounted
+	# a bare repo
+	echo "bare repo $REPO_DIR is invalid for this operation" >&2
+	usage
+	exit 1
+elif [[ $IS_BARE == true && $TYPE == 'true' ]]; then 
+	# git fetch all branches into the current bare branch
+	run_die git fetch $REMOTE
 	exit 0
 fi
 
