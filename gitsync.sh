@@ -31,27 +31,30 @@ run_die()
 	echo
 }
 
-
-# switches
-if [[ "$1" == "-v" ]]; then
-	shift
-else
-	# standard behavior: close stdout for rest of script
+#	kill_stdout()
+# standard behavior: close stdout for rest of script
+kill_stdout()
+{
 	exec 1>/dev/null
 	echo "should NOT print"
-fi
+}
 
 # system sanity
 run_die which git >/dev/null
 
 IS_BARE=false
+IS_VERBOSE=false
 
 # getopts for -b REPO_DIR REMOTE
 # Don't pass REPO_DIR and REMOTE as args to '-b'
-while getopts ":b" opt; do
+while getopts ":bv" opt; do
 	case "$opt" in
+		v)
+			echo "verbose"
+			IS_VERBOSE=true
+			;;
 		b)
-			IS_BARE=true	
+			IS_BARE=true
 			;;
 		\?)
 			echo "Invalid option: $OPTARG" >&2
@@ -59,13 +62,12 @@ while getopts ":b" opt; do
 	esac
 done
 
-# arguments
-if [[ $IS_BARE == false && $# != 4 ]]; then
-	usage $0
-	exit 1
-elif [[ $IS_BARE == true && $# != 3 ]]; then
-	usage $0
-	exit 1
+# no verbosity
+if [[ $IS_VERBOSE == false ]]; then
+	kill_stdout
+# verbosity but is a working tree, so only '-v' flag
+elif [[ $IS_BARE == false && $IS_VERBOSE == true ]];  then
+	shift
 fi
 
 REPO_DIR=$1
@@ -74,9 +76,15 @@ REMOTE=$3
 REMOTE_BRANCH=$4
 
 # If its a bare repo to sync, reset the variables correctly
-if [[ $IS_BARE == true && $# == 3 ]]; then
-	# -b is the first, so shift
-	shift
+if [[ $IS_BARE == true ]]; then
+	# 4 args means we have '-v -b' flags
+	if [[ $# == 4 ]]; then
+		shift
+		shift
+	else
+	# 3 args means a '-vb' flag
+		shift
+	fi
 	REPO_DIR=$1
 	REMOTE=$2
 fi
@@ -98,7 +106,7 @@ fi
 # handle bare repo differently
 ##
 if [[ $IS_BARE == true && $TYPE == 'true' ]]; then
-	# git fetch all branches into the current bare branch
+	# git fetch all branches into the current bare repo
 	run_die git fetch $REMOTE '*:*'
 	exit 0
 elif [[ $IS_BARE == false && $TYPE == 'true' ]]; then
