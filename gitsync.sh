@@ -63,7 +63,7 @@ done
 if [[ $IS_BARE == false && $# != 4 ]]; then
 	usage $0
 	exit 1
-elif [[ $# != 3 ]]; then
+elif [[ $IS_BARE == true && $# != 3 ]]; then
 	usage $0
 	exit 1
 fi
@@ -74,7 +74,9 @@ REMOTE=$3
 REMOTE_BRANCH=$4
 
 # If its a bare repo to sync, reset the variables correctly
-if [[ $# == 3 ]]; then
+if [[ $IS_BARE == true && $# == 3 ]]; then
+	# -b is the first, so shift
+	shift
 	REPO_DIR=$1
 	REMOTE=$2
 fi
@@ -95,16 +97,14 @@ fi
 ##
 # handle bare repo differently
 ##
-if [[ $IS_BARE == false && $TYPE == 'true' ]]; then
-	# error out, as we specified a non-bare repo to sync up and we've encounted
-	# a bare repo
-	echo "bare repo $REPO_DIR is invalid for this operation" >&2
-	usage
-	exit 1
-elif [[ $IS_BARE == true && $TYPE == 'true' ]]; then 
+if [[ $IS_BARE == true && $TYPE == 'true' ]]; then
 	# git fetch all branches into the current bare branch
-	run_die git fetch $REMOTE
+	run_die git fetch $REMOTE '*:*'
 	exit 0
+elif [[ $IS_BARE == false && $TYPE == 'true' ]]; then
+	echo "Not valid for a bare repo, only run on working tree"
+	usage $0
+        exit 0
 fi
 
 
