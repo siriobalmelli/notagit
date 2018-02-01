@@ -84,10 +84,7 @@ while getopts ":wbv" opt; do
 	esac
 done
 # variable shift ... because arguments may have been passed e.g. as `-bv`
-while (( $OPTIND > 1 )); do
-	shift
-	$OPTIND=$(( $OPTIND - 1 ))
-done
+shift $((OPTIND - 1))
 
 # no verbosity
 if [[ -z $IS_VERBOSE ]]; then
@@ -119,7 +116,7 @@ repo_sanity()
 ##
 #	working logic
 ##
-if [[ $IS_BARE == true ]]; then
+if [[ $IS_BARE ]]; then
 	REPO_DIR=$1
 	REMOTE=$2
 	repo_sanity
