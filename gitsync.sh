@@ -4,16 +4,22 @@
 #
 # Synchronize a git repository safely (safe to call from e.g. cron)
 
+
 #	usage()
 # Print usage to stderr
 #		$0	:	command name
 usage()
 {
 	echo -e "usage:
-$0 [-v] REPO_DIR LOCAL_BRANCH REMOTE REMOTE_BRANCH
-	-v	:	verbose: Print command output.
+$0 [-v] -w	REPO_DIR LOCAL_BRANCH 	REMOTE REMOTE_BRANCH
+
+$0 [-v] -b 	REPO_DIR		REMOTE
+
+	-w	:	Working tree: sync LOCAL_BRANCH with REMOTE_BRANCH
+	-b	:	Bare repo: sync all branches.
+	-v	:	Print command output.
 			Default behavior is to only print errors.
-$0 [-v] -b REPO_DIR REMOTE" >&2
+" >&2
 }
 
 #	run_die()
@@ -39,91 +45,111 @@ kill_stdout()
 	echo "should NOT print"
 }
 
+#	bail()
+# output an error message and exit non-0
+#	$1	error message
+bail()
+{
+	echo "$1" >&2
+	exit 1
+}
+
+
 # system sanity
 run_die which git >/dev/null
 
-IS_BARE=false
-IS_VERBOSE=false
+IS_BARE=""
+IS_WORK=""
+IS_VERBOSE=""
 
 # getopts for -b REPO_DIR REMOTE
 # Don't pass REPO_DIR and REMOTE as args to '-b'
-while getopts ":bv" opt; do
+while getopts ":wbv" opt; do
 	case "$opt" in
 		v)
 			echo "verbose"
-			IS_VERBOSE=true
+			IS_VERBOSE=1
 			;;
 		b)
-			IS_BARE=true
+			if [[ $IS_WORK ]]; then bail "more than one option specified"; fi
+			IS_BARE=1
+			;;
+		w)
+			if [[ $IS_BARE ]]; then bail "more than one option specified"; fi
+			IS_WORK=1
 			;;
 		\?)
 			echo "Invalid option: $OPTARG" >&2
 			;;
 	esac
 done
+# variable shift ... because arguments may have been passed e.g. as `-bv`
+while (( $OPTIND > 1 )); do
+	shift
+	$OPTIND=$(( $OPTIND - 1 ))
+done
 
 # no verbosity
-if [[ $IS_VERBOSE == false ]]; then
+if [[ -z $IS_VERBOSE ]]; then
 	kill_stdout
-# verbosity but is a working tree, so only '-v' flag
-elif [[ $IS_BARE == false && $IS_VERBOSE == true ]];  then
-	shift
 fi
 
-REPO_DIR=$1
-LOCAL_BRANCH=$2
-REMOTE=$3
-REMOTE_BRANCH=$4
 
-# If its a bare repo to sync, reset the variables correctly
-if [[ $IS_BARE == true ]]; then
-	# 4 args means we have '-v -b' flags
-	if [[ $# == 4 ]]; then
-		shift
-		shift
-	else
-	# 3 args means a '-vb' flag
-		shift
+#	repo_sanity
+# Common sanity checks for all repos
+repo_sanity()
+{
+	# verify existence of directory
+	if [[ ! -d "$REPO_DIR" ]]; then
+		bail "'$REPO_DIR' is not a directory"
 	fi
+	pushd "$REPO_DIR"
+
+	# Verify whether it's a git repo at all.
+	if ! TYPE=$(git rev-parse --is-bare-repository); then
+		bail "'$REPO_DIR' is not a git repo"
+	fi
+	# Verify that the repo type matches what we are doing
+	if [[ $IS_BARE && $TYPE == 'false' ]]; then
+		bail "$REPO_DIR not a bare repo"
+	fi
+}
+
+
+##
+#	working logic
+##
+if [[ $IS_BARE == true ]]; then
 	REPO_DIR=$1
 	REMOTE=$2
-fi
-
-# verify existence of directory
-if [[ ! -d "$REPO_DIR" ]]; then
-	echo "'$REPO_DIR' is not a directory" >&2
-	exit 1
-fi
-pushd "$REPO_DIR"
-
-# Verify whether it's a git repo at all.
-if ! TYPE=$(git rev-parse --is-bare-repository); then
-	echo "'$REPO_DIR' is not a git repo" >&2
-	exit 1
-fi
-
-##
-# handle bare repo differently
-##
-if [[ $IS_BARE == true && $TYPE == 'true' ]]; then
-	# git fetch all branches into the current bare repo
+	repo_sanity
 	run_die git fetch $REMOTE '*:*'
+	# as the beatles say: fetch is all you need ;)
 	exit 0
-elif [[ $IS_BARE == false && $TYPE == 'true' ]]; then
-	echo "Not valid for a bare repo, only run on working tree"
+
+elif [[ $IS_WORK ]]; then
+	REPO_DIR=$1
+	LOCAL_BRANCH=$2
+	REMOTE=$3
+	REMOTE_BRANCH=$4
+	repo_sanity
+	# always be fetching
+	run_die git fetch $REMOTE
+
+else
+	echo "no repo type (-w || -b) specified. nothing to do" >&2
 	usage $0
-        exit 0
+	exit 1
 fi
 
 
 ##
-# handle working tree
+# from here down: handle working tree case
 ##
-# bail if not in correct branch - user may be working!
 BRANCH=$(git branch | cut -d ' ' -f 2)
+# bail if not in correct branch - user may be working!
 if [[ "$BRANCH" != "$LOCAL_BRANCH" ]]; then
-	echo "$REPO_DIR: branch $BRANCH != requested $LOCAL_BRANCH" >&2
-	exit 1
+	bail "$REPO_DIR: branch $BRANCH != requested $LOCAL_BRANCH"
 fi
 # bail if uncommitted changes
 STAT=$(git status -s)
@@ -133,9 +159,6 @@ if [[ $STAT ]]; then
 	exit 1
 fi
 
-
-# fetch remote
-run_die git fetch "$REMOTE" "$REMOTE_BRANCH"
 # Merge only if we are BEHIND remote (aka: merge will always work)
 # This is inspired by <https://github.com/simonthum/git-sync>,
 #+	thank you Simon Thum.
