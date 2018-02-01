@@ -17,8 +17,11 @@ else
 INSTALL_DIR=/usr/sbin
 endif
 
-.PHONY: install uninstall
-install :
+.PHONY: test install uninstall
+test :
+	$(wildcard tests/*.sh)
+
+install : test
 	@for a in $(SCRIPT); do \
 		if ! diff $$a $(INSTALL_DIR)/$$a >/dev/null; then \
 			cp -fv $$a $(INSTALL_DIR)/; \
