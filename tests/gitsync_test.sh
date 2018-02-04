@@ -49,8 +49,8 @@ commit_to_repo()
 	popd
 }
 
-# sync repos 
-# '$1' repo to by synced into 
+# sync repos
+# '$1' repo to by synced into
 # '$2' repo to be synced from
 sync_repos()
 {
@@ -63,7 +63,7 @@ sync_repos()
 	popd
 }
 
-## AHEAD 
+## AHEAD
 echo "*************** AHEAD ******************************"
 init_bare 1
 commit_to_repo 1 "hello from bare1" "initial commit"
@@ -91,8 +91,101 @@ commit_to_repo 2 "hello from bare2" "divergent commit bare2"
 commit_to_repo 1 "hello from bare1" "divergent commit bare1"
 # expect failure
 set +e
-sync_repos 1 2 
+sync_repos 1 2
 set -e
 rm_repos
 
+
+
+## WORKING TREE
+
+# sync repos
+# '$1' repo to by synced into
+# '$2' local branch
+# '$3' remote
+# '$4' remote branch
+sync_working_tree_repo()
+{
+	# ../gitsync.sh [-v] -w   REPO_DIR LOCAL_BRANCH   REMOTE REMOTE_BRANCH
+	set -x
+	pushd ..
+	./gitsync.sh -w bare$1 $2 $3 $4
+	git pull
+	popd
+}
+
+# create a new remote
+# '$1' remote url
+# '$2' remote name
+# '$3' git repo dir
+git_remote_add()
+{
+	pushd $3
+	git remote add $2 $1
+#	git pull $2 master
+	popd
+}
+
+
+
+
+## BEHIND
+
+echo "*************** WT BEHIND ******************************"
+init_bare 1
+commit_to_repo 1 "hello from repo1" "initial commit"
+init_bare 2
+# make bare2 equal to bare1
+sync_repos 2 1
+
+# add remote bare1 into bare2
+git_remote_add ../bare1 bare1 ../bare2
+# set bare1 ahead of current repo (bare2)
+commit_to_repo 1 "hello from 1 again" "second commit"
+
+# sync bare2 which is BEHIND remote (bare1)
+sync_working_tree_repo 2 master bare1 master
+
+rm_repos
+
+## AHEAD
+
+echo "*************** WT AHEAD ******************************"
+init_bare 1
+commit_to_repo 1 "hello from repo1" "initial commit"
+init_bare 2
+# make bare2 equal to bare1
+sync_repos 2 1
+
+# add remote bare1 into bare2
+git_remote_add ../bare1 bare1 ../bare2
+# set current repo (bare2) ahead of bare1 (remote)
+#commit_to_repo 2 "hello from 2" "second commit"
+
+# sync bare2 which is AHEAD of remote (bare1)
+echo "**************** SYNC *********************************"
+sync_working_tree_repo 2 master bare1 master
+
+rm_repos
+
+## DIVERGE
+
+#echo "*************** WT DIVERGE ******************************"
+init_bare 1
+commit_to_repo 1 "hello from repo1" "initial commit"
+init_bare 2
+commit_to_repo 2 "hello from repo2" "initial commit"
+
+git_remote_add ../bare1 bare1 ../bare2
+commit_to_repo 1 "hello from 1 again" "second commit"
+
+commit_to_repo 2 "divergent commit" "diverged"
+
+## We expect a barf about divergent commits
+## ignore this
+set +e
+sync_working_tree_repo 2 master bare1 master
+set -e
+
+rm_repos
 exit 0
