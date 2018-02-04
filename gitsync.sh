@@ -172,7 +172,7 @@ case "$DIFF" in
 	# behind: merge
 	# don't rebase, merge: user may have 'post-merge' githooks
 	*[^0-9]"0")
-		run_die git merge "$REMOTE" "$REMOTE_BRANCH"
+		run_die git merge "$REMOTE"/"$REMOTE_BRANCH"
 		;;
 	# anything else: trouble
 	*)
