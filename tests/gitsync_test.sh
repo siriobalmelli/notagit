@@ -63,6 +63,10 @@ sync_repos()
 	popd
 }
 
+# Get into our own directory
+pushd $(dirname "$0")
+
+
 ## AHEAD
 echo "*************** AHEAD ******************************"
 init_bare 1
@@ -188,4 +192,5 @@ sync_working_tree_repo 2 master bare1 master
 set -e
 
 rm_repos
+popd # leave directory again
 exit 0
