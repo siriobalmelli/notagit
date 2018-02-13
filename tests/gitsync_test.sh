@@ -65,7 +65,8 @@ sync_repos()
 
 # Get into our own directory
 pushd $(dirname "$0")
-
+# clean up after any previously barfed testings
+rm_repos
 
 ## AHEAD
 echo "*************** AHEAD ******************************"
