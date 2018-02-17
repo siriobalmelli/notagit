@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# TODO:
-#	- strongly suggest that users have a 'g_' prefix
-#	- fail if a system account already exists
-
 # input validation regeces ;)
 REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'
@@ -29,65 +25,6 @@ NOTES:
 	- quotas not implemented yet
 " >&2
 }
-
-
-# static assumptions
-REPO_BASE="/usr/src/git"	# active repos go here
-ARCH_BASE="/usr/src/archive"	# disabled repos go here
-
-
-# get arguments
-QUOTA_=
-WRITE_=
-DBG_=
-INACTIVE_=
-while [[ "$1" \
-	&& "$1" != "repo" \
-	&& "$1" != "user" \
-	&& "$1" != "auth" \
-	&& "$1" != "key" ]]
-do
-	case $1 in
-	-v|--verbose)
-		DBG_="-v" # do double-duty as a command flag ;)
-		DEBUG_PRN_="debugging enabled:	$*"
-		shift
-		;;
-	-i|--inactive)
-		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
-		shift
-		;;
-	-q|--quota)
-		DEBUG_PRN_="got quota of $2"
-		QUOTA_="$2"
-		echo "quotas not yet implemented" >&2
-		exit 1
-		shift; shift
-		;;
-	-w|--write)
-		DEBUG_PRN_="write"
-		WRITE_=1
-		shift
-		;;
-	*)
-		echo "Unknown option '$1'" >&2
-		usage
-		exit 1
-		;;
-	esac
-	# optional argument debug print
-	if [[ $DBG_ ]]; then
-		echo "$DEBUG_PRN_"
-	fi
-done
-# disabled users have '.ssh/disabled', active ones have 'authorized_keys' instead
-if [[ $INACTIVE_ ]]; then
-	COND_=".ssh/disabled"
-else
-	COND_=".ssh/authorized_keys"
-fi
-
-
 
 
 ##########################################################
@@ -698,30 +635,82 @@ auth()
 
 
 ##########################################################
-##			main				##
+##			main										##
 ##########################################################
 
+# static assumptions
+REPO_BASE="/usr/src/git"	# active repos go here
+ARCH_BASE="/usr/src/archive"	# disabled repos go here
+
+# get arguments
+QUOTA_=
+WRITE_=
+DBG_=
+INACTIVE_=
+COND_=".ssh/authorized_keys" # active users have their keys here
+MODE_=
+MODE_ARGS_=()
+while [[ "$1" ]]; do
+	case $1 in
+	##
+	# flags
+	##
+	-h|-?|--help)
+		usage
+		exit 0
+		;;
+	-v|--verbose)
+		DBG_="-v" # do double-duty as a command flag ;)
+		DEBUG_PRN_="debugging enabled:	$*"
+		shift
+		;;
+	-i|--inactive)
+		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
+		COND_=".ssh/disabled" # disabled users have keys in '.ssh/disabled'
+		shift
+		;;
+	-q|--quota)
+		DEBUG_PRN_="got quota of $2"
+		QUOTA_="$2"
+		echo "quotas not yet implemented" >&2
+		exit 1
+		shift; shift
+		;;
+	-w|--write)
+		DEBUG_PRN_="write"
+		WRITE_=1
+		shift
+		;;
+	##
+	# modes
+	##
+	repo|user|auth|key)
+		MODE_=$1
+		shift
+		;;
+	# possible mode arguments?
+	# NOTE: each mode function sanitizes its arguments separately
+	*)
+		MODE_ARGS_=(${MODE_ARGS_[*]} $1)
+		shift
+		;;
+	esac
+
+	# optional argument debug print
+	if [[ $DBG_ ]]; then
+		echo "$DEBUG_PRN_"
+	fi
+done
+
+# sanity check
 check_platform
-case $1 in
-repo)
-	shift
-	repo $*
-	;;
-user)
-	shift
-	user $*
-	;;
-auth)
-	shift
-	auth $*
-	;;
-key)
-	shift
-	key $*
-	;;
-*)
-	echo "Unknown command '$1'" >&2
+
+# bail if nothing to be done
+if [[ ! $MODE_ ]]; then
+	echo "nothing to do, possible options error?" >&2
 	usage
 	exit 1
-	;;
-esac
+# otherwise, exec the mode with all its arguments
+else
+	$MODE_ ${MODE_ARGS_[*]}
+fi
