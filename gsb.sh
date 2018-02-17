@@ -8,7 +8,7 @@ KEY_VAL='ssh-[rd]sa \S+ \S+'
 usage()
 {
 	echo -e "usage:
-$0 [-v|--verbose] [-i|--inactive]
+$0 [-v|--verbose] [-i|--inactive] [-?|-h|--help]
 	[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
 				user	{ls|add|disable|rm}	USER
 				key	{ls|add|rm}		USER KEY
