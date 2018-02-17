@@ -52,10 +52,11 @@ This is solved by [gsb.sh](./gsb.sh), which was thought up to be:
 	home dir to give read access.
 1. Selectively adding the user to the supplementary group of the git
 	repo to give write access.
-1. Using ONLY existing system mechanisms to manage this - do not write anything,
-	do not require sysadmins to track another config file.
+1. Using ONLY existing system mechanisms to manage this
+	- do not write anything
+	- do not require sysadmins to track another config file
 
-See the [gsb.sh documentation](docs/gsb.md) for more details.
+See the [gsb.sh documentation](docs/gsb.md) for details and examples.
 
 ## gitsync.sh
 
@@ -106,9 +107,8 @@ If you would like to hack on the documentation:
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
-- gitsync: sync ALL branches of remote repo (aka: backup)
 
-## naming
+## Naming
 
 I called it `notagit` since by using these utilities, sysadmins everywhere
 	can demonstrate their outstanding, pragmatic intelligence and deep wisdom
