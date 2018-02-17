@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# TODO:
+#	- strongly suggest that users have a 'g_' prefix
+#	- fail if a system account already exists
+
 # input validation regeces ;)
 REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'

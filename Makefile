@@ -10,7 +10,7 @@ SCRIPT=\
 # The rationale is that these scripts ought to be in /usr/sbin 
 #+	as they are management utilities (and often called from CRON);
 #+	but since OS X has made that impossible (and anyways, who runs an OS X
-#+	server these days?!?) we'll settle for /usr/loca/bin instead
+#+	server these days?!?) we'll settle for /usr/local/bin instead
 ifeq ($(shell uname),Darwin)
 INSTALL_DIR=/usr/local/bin
 else
@@ -21,7 +21,7 @@ endif
 test :
 	$(wildcard tests/*.sh)
 
-install : test
+install :
 	@for a in $(SCRIPT); do \
 		if ! diff $$a $(INSTALL_DIR)/$$a >/dev/null; then \
 			cp -fv $$a $(INSTALL_DIR)/; \
