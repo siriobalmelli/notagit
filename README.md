@@ -109,10 +109,9 @@ If you would like to hack on the documentation:
 - Tests for gsb.sh (need a VM or at the very least a docker?)
 - Replace the `poop` error checking mechanism with a function call
 	to a `do_fail()` function or similar.
-- Tweak `gsb` output to be reciprocal: output from one `gsb.sh [mode] ls`
-	is valid, idempotent input for `gsb.sh [mode] add | del`
-	so that configurations can easily be migrated/synchronized
-	between servers.
+- Implement -i flag for repos; add a disabled repo to a disabled user
+- Implement -f flag to *create* a user/repo if it does not exist,
+	when disabling; output -f flag when dumping
 
 ## Naming
 

@@ -3,17 +3,18 @@
 # input validation regeces ;)
 REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'
-KEY_VAL='ssh-[rd]sa \S+ \S+'
+KEY_VAL='ssh-[rd]s[as] \S+ \S+'
 
 
 usage()
 {
 	echo -e "usage:
-$0 [-v|--verbose] [-i|--inactive] [-?|-h|--help]
+$0 [-v|--verbose|--dump] [-i|--inactive] [-?|-h|--help]
 	[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
 				user	{ls|add|disable|rm}	USER
 				key	{ls|add|rm}		USER KEY
 	[-w|--write]		auth	{ls|add|mod|rm}		USER REPO
+				dump
 
 Field definition (RegEx):
 REPO	:=	'$REPO_VAL'
@@ -24,6 +25,8 @@ NOTES:
 	- script should be run with root privileges.
 	- KEY must be quoted (or must be a file)
 	- quotas not implemented yet
+	- use 'dump|verbose' flag to pipe $0 output back to input,
+		e.g. to restore a backup or sync two systems
 " >&2
 }
 
@@ -161,7 +164,7 @@ mount_refresh_()
 	fi
 
 	# mount things according to fstab
-	mount -a $DBG_
+	mount -a -t none $DBG_ | grep -v ignored
 		poop=$?; if (( $poop )); then exit $poop; fi
 }
 
@@ -184,15 +187,26 @@ repo()
 		# list active or inactive repos?
 		if [[ ! $INACTIVE_ ]]; then
 			SEARCH_="$REPO_BASE"
+			STUB_=add # used in building DUMP_ further down
 		else
 			SEARCH_="$ARCH_BASE"
+			STUB_=disable
 		fi
+
+		# handle '-v|--dump' flag by recreating command
+		if [[ $DBG_ ]]; then
+			DUMP_="repo $STUB_ "
+		fi
+
 		# list them
-		find "$SEARCH_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
+		for r in $(find "$SEARCH_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
 				-exec basename '{}' \; \
 			| grep "$2" \
-			| sort
-		return $?
+			| sort)
+		do
+			echo "${DUMP_}$r"
+		done
+		return
 	fi
 
 	# all other invocations besides "list" require REPO
@@ -331,16 +345,20 @@ user()
 	# 	list
 	# Show either active or inactive users
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
+		# handle '-v|--dump' flag by prepending the command to recreate
+		if [[ $DBG_ ]]; then
+			if [[ $COND_ =~ disabled ]]; then
+				DUMP_="user disable "
+			else
+				DUMP_="user add "
+			fi
+		fi
 		# only go through "git-shell" users; user $2 as a filter string
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			if [[ -e "/home/$u/$COND_" ]]; then
-				echo $u
-				if [[ "$KEY_" == "1" ]]; then
-					cat /home/$u/$COND_
-				fi
+				echo "${DUMP_}$u"
 			fi
 		done
-		#done
 		return 0
 	fi
 
@@ -455,12 +473,13 @@ key()
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			# only show users who are enabled/disabled as per '-i' flag
 			if [[ -e /home/$u/$COND_ ]]; then
-				# print user, and optionally contents of the proper auth_keys file
-				echo "$u"
+				# handle '-v|--dump' flag by printing full command to recreate
 				if [[ $DBG_ ]]; then
-					cat /home/$u/$COND_		
+					sed -rn 's/.*(ssh-[rd]s[as].*)/'"key add ${I_}$u "'\1/p' \
+						/home/$u/$COND_
 				else
-					sed -rn 's/.*(ssh-[rd]sa) \S+(\S{24}) (\S+)$/\t\1 ...\2 \3/p' /home/$u/$COND_
+					sed -rn 's/.*(ssh-[rd]s[as]) \S+(\S{24}) (\S+)$/'"$u"'\t\1 ...\2 \3/p' \
+						/home/$u/$COND_
 				fi
 			fi
 		done
@@ -552,8 +571,14 @@ auth()
 		else
 			LEAD='s|^\s*#\s*'
 		fi
-		ARR=( $(sed -rn "$LEAD""$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
-				| grep "$2") )
+		ARR=( $(sed -rn "$LEAD""$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' \
+			/etc/fstab | grep "$2") )
+
+		# handle '-v|--dump' flag by printing command stub
+		if [[ $DBG_ ]]; then
+			DUMP_="auth add $I_"
+		fi
+
 		# print, marking write-enabled auths with 'w'
 		for i in ${ARR[@]}; do
 			# Apologies for making the delimiter '/', but it's the ONE character
@@ -563,7 +588,7 @@ auth()
 			else
 				W=""
 			fi
-			printf "${i/#*\//} ${i/%\/*/} $W\n"
+			printf "${DUMP_}${i/#*\//} ${i/%\/*/} $W\n"
 		done | column -t
 		return 0
 	fi
@@ -601,7 +626,8 @@ auth()
 			#+	use 'while' to ensure its printed either way.
 			# NOTE that we insert a commented-out entry if user is disabled/inactive
 			while ! grep -E "/home/$2/$3" /etc/fstab; do
-				printf "${INACTIVE_}$REPO_BASE/$3\t/home/$2/$3\tnone\tbind,noexec,nobootwait\t0\t0" >>/etc/fstab
+				printf "${INACTIVE_}$REPO_BASE/$3\t/home/$2/$3\tnone\tbind,noexec,nobootwait\t0\t0" \
+					>>/etc/fstab
 				sort -o /etc/fstab /etc/fstab
 			done
 			# update mounts
@@ -633,6 +659,22 @@ auth()
 }
 
 
+#	dump()
+#
+# Dump a full backup
+dump()
+{
+	bash -c "$0 repo ls -v" 2>/dev/null
+	bash -c "$0 repo ls -v -i" 2>/dev/null
+	bash -c "$0 user ls -v" 2>/dev/null
+	bash -c "$0 key ls -v" 2>/dev/null
+	bash -c "$0 user ls -v -i" 2>/dev/null
+	bash -c "$0 key ls -v -i" 2>/dev/null
+	bash -c "$0 auth ls -v" 2>/dev/null
+	bash -c "$0 auth ls -v -i" 2>/dev/null
+}
+
+
 ##########################################################
 ##			main				##
 ##########################################################
@@ -645,8 +687,10 @@ ARCH_BASE="/usr/src/archive"	# disabled repos go here
 QUOTA_=
 WRITE_=
 DBG_=
+DUMP_=
 INACTIVE_=
 COND_=".ssh/authorized_keys" # active users have their keys here
+I_=
 MODE_=
 MODE_ARGS_=()
 FORCE_=
@@ -659,37 +703,34 @@ while [[ "$1" ]]; do
 		usage
 		exit 0
 		;;
-	-v|--verbose)
+	-v|--verbose|-d|--dump)
 		DBG_="-v" # do double-duty as a command flag ;)
-		DEBUG_PRN_="debugging enabled:	$*"
 		shift
 		;;
 	-i|--inactive)
 		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
 		COND_=".ssh/disabled" # disabled users have keys in '.ssh/disabled'
+		I_="-i "
 		shift
 		;;
 	-q|--quota)
-		DEBUG_PRN_="got quota of $2"
 		QUOTA_="$2"
 		echo "quotas not yet implemented" >&2
 		exit 1
 		shift; shift
 		;;
 	-w|--write)
-		DEBUG_PRN_="write"
 		WRITE_=1
 		shift
 		;;
 	-f|--force)
-		DEBUG_PRN_="force"
 		FORCE_=1
 		shift
 		;;
 	##
 	# modes
 	##
-	repo|user|auth|key)
+	repo|user|auth|key|dump)
 		MODE_=$1
 		shift
 		;;
@@ -700,11 +741,6 @@ while [[ "$1" ]]; do
 		shift
 		;;
 	esac
-
-	# optional argument debug print
-	if [[ $DBG_ ]]; then
-		echo "$DEBUG_PRN_"
-	fi
 done
 
 # sanity check
