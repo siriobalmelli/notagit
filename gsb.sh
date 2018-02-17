@@ -559,7 +559,7 @@ auth()
 			# Apologies for making the delimiter '/', but it's the ONE character
 			#+	I'm sure won't show up in either repo or user names.
 			if getent group git_${i/%\/*/} | grep ${i/#*\//} >/dev/null; then
-				W="w"
+				W="-w"
 			else
 				W=""
 			fi

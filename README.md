@@ -101,12 +101,18 @@ If you would like to hack on the documentation:
 
 ## TODO
 
-- migrate gsb to `getopt` for friendlier interface; auto-completion
 - Show '-w' flag on `gsb.sh auth ls`
 - Quotas on .git repos (to stop users from crashing server)
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
+- Tests for gsb.sh (need a VM or at the very least a docker?)
+- Replace the `poop` error checking mechanism with a function call
+	to a `do_fail()` function or similar.
+- Tweak `gsb` output to be reciprocal: output from one `gsb.sh [mode] ls`
+	is valid, idempotent input for `gsb.sh [mode] add | del`
+	so that configurations can easily be migrated/synchronized
+	between servers.
 
 ## Naming
 
