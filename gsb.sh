@@ -5,6 +5,7 @@ REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'
 KEY_VAL='ssh-[rd]sa \S+ \S+'
 
+
 usage()
 {
 	echo -e "usage:
@@ -12,7 +13,7 @@ $0 [-v|--verbose] [-i|--inactive] [-?|-h|--help]
 	[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
 				user	{ls|add|disable|rm}	USER
 				key	{ls|add|rm}		USER KEY
-	[-w|--write]		auth	{ls|add|rm}		USER REPO
+	[-w|--write]		auth	{ls|add|mod|rm}		USER REPO
 
 Field definition (RegEx):
 REPO	:=	'$REPO_VAL'
@@ -56,8 +57,6 @@ repo_exists_()
 
 	return 0
 }
-
-
 
 
 ##########################################################
@@ -116,14 +115,7 @@ user_ssh_perms_()
 		poop=$?; if (( $poop )); then exit $poop; fi
 	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
 		poop=$?; if (( $poop )); then exit $poop; fi
-	# force ownership and permissions
-	chown $DBG_ -R "$1": "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
 }
-
-
 
 
 ##########################################################
@@ -174,10 +166,8 @@ mount_refresh_()
 }
 
 
-
-
 ##########################################################
-##			primary functions 		##
+##		primary functions (aka: "modes")	##
 ##########################################################
 
 #	repo()
@@ -366,13 +356,23 @@ user()
 		# Add a new user; Enable a previously disabled user; Validate a user.
 		# An active user can ONLY log in via SSH, to a git-shell.
 		new|add|en|enable)
-			# if no user, create
-			if ! getent passwd $2 >/dev/null; then
-				adduser --shell /usr/bin/git-shell --disabled-password --gecos "" "$2"
-			# otherwise, force git-shell
-			else
+			EXIST=$(getent passwd $2)
+			# handle existing users gracefully
+			if [[ $EXIST ]]; then
+				if [[ ! $FORCE && ! $EXIST =~ git-shell ]]; then
+					echo \
+"User '$2' already exists but does not use git-shell, you may be clobbering an existing account.
+Use '--force' to proceed despite this." >&2
+					exit 1
+				fi
+				# ALWAYS force the shell, someone may have called
+				#+	themselves "git-shell" LOL
 				usermod -s /usr/bin/git-shell "$2" 2>/dev/null
+			# add new users
+			else
+				adduser --shell /usr/bin/git-shell --disabled-password --gecos "" "$2"
 			fi
+
 			# ensure there are no enabled git-shell commands
 			rm -f $DBG_ "/home/$2/git-shell-commands"
 
@@ -538,7 +538,7 @@ key()
 
 
 #	auth()
-#		$1	:	{ls|add|rem}
+#		$1	:	{ls|add|mod|rem}
 #		$2	:	USER
 #		$3	:	REPO
 auth()
@@ -546,13 +546,14 @@ auth()
 	# 	list
 	# Show either active or inactive authorizations, use $2 as a filter
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
+		# prepend a '#' to search for commented-out (disabled) users
 		if [[ ! $INACTIVE_ ]]; then
-			ARR=( $(sed -rn 's|^\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
-					| grep "$2") )
+			LEAD='s|^\s*'
 		else
-			ARR=( $(sed -rn 's|^\s*#\s*'"$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
-					| grep "$2") )
+			LEAD='s|^\s*#\s*'
 		fi
+		ARR=( $(sed -rn "$LEAD""$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' /etc/fstab \
+				| grep "$2") )
 		# print, marking write-enabled auths with 'w'
 		for i in ${ARR[@]}; do
 			# Apologies for making the delimiter '/', but it's the ONE character
@@ -562,7 +563,7 @@ auth()
 			else
 				W=""
 			fi
-			printf "${i/%\/*/} ${i/#*\//} $W\n"
+			printf "${i/#*\//} ${i/%\/*/} $W\n"
 		done | column -t
 		return 0
 	fi
@@ -583,12 +584,12 @@ auth()
 	case $1 in
 		#	add
 		# Allow/verify that user $2 can access repo $3
-		new|add|en|enable)
+		new|add|en|enable|mod|modify)
 			# add user to repo-specific group so they can write?
 			if [[ $WRITE_ ]]; then
 				usermod -s /usr/bin/git-shell -a -G "git_$3" "$2"
 				poop=$?; if (( $poop )); then exit $poop; fi
-			# in case user COULD write previosly, disable this
+			# in case user COULD write previously, disable this
 			else
 				deluser "$2" "git_$3" 2>/dev/null
 			fi
@@ -632,10 +633,8 @@ auth()
 }
 
 
-
-
 ##########################################################
-##			main										##
+##			main				##
 ##########################################################
 
 # static assumptions
@@ -650,12 +649,13 @@ INACTIVE_=
 COND_=".ssh/authorized_keys" # active users have their keys here
 MODE_=
 MODE_ARGS_=()
+FORCE_=
 while [[ "$1" ]]; do
 	case $1 in
 	##
 	# flags
 	##
-	-h|-?|--help)
+	-h|-\?|--help)
 		usage
 		exit 0
 		;;
@@ -679,6 +679,11 @@ while [[ "$1" ]]; do
 	-w|--write)
 		DEBUG_PRN_="write"
 		WRITE_=1
+		shift
+		;;
+	-f|--force)
+		DEBUG_PRN_="force"
+		FORCE_=1
 		shift
 		;;
 	##
