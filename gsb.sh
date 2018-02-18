@@ -9,12 +9,12 @@ KEY_VAL='ssh-[rd]s[as] \S+ \S+'
 usage()
 {
 	echo -e "usage:
-$0 [-v|--verbose|--dump] [-i|--inactive] [-?|-h|--help]
-	[-q|--quota MB]		repo	{ls|add|disable|rm}	REPO
-				user	{ls|add|disable|rm}	USER
-				key	{ls|add|rm}		USER KEY
-	[-w|--write]		auth	{ls|add|mod|rm}		USER REPO
-				dump
+$0 [-v|--verbose] [-?|-h|--help]
+	repo	{ls|add|mod|rm}	REPO		[-a|--archived] [-q|--quota <QUOTA>]
+	user	{ls|add|mod|rm}	USER		[-d|--disabled]
+	key	{ls|add|mod|rm}	USER KEY	[-d|--disabled]
+	auth	{ls|add|mod|rm}	USER REPO	[-a|--archived] [-d|--disabled]	[-w|--write]
+	dump
 
 Field definition (RegEx):
 REPO	:=	'$REPO_VAL'
@@ -22,12 +22,51 @@ USER	:=	'$USER_VAL'
 KEY	:=	'$KEY_VAL' || {filename}
 
 NOTES:
+	- 'add' implies \"create if not existing, modify if existing\"
+		and is synonymous with 'mod'.
 	- script should be run with root privileges.
-	- KEY must be quoted (or must be a file)
-	- quotas not implemented yet
-	- use 'dump|verbose' flag to pipe $0 output back to input,
+	- use '-v|--verbose' flag to pipe $0 output back to input,
 		e.g. to restore a backup or sync two systems
 " >&2
+}
+
+
+##########################################################
+##		internal/script utilities		##
+##########################################################
+
+#	echo_q()
+#		$1	:	message
+#		$2	:	quiet?
+# Echo an error message to console, unless the $2 "quiet" flag is set
+echo_q()
+{
+	if [[ -z $2 ]]; then
+		echo "$1" >&2
+	fi
+}
+
+#	echo_die()
+#		$1	:	message
+# Echo error message to the console and then exit abnormally
+echo_die()
+{
+	echo "$1" >&2
+	exit 1
+}
+
+
+#	do_die()
+#		$*	:	command
+# Execute $*, aborting if result is non-zero
+do_die()
+{
+	$*
+	poop=$?
+	if (( $poop )); then
+		echo "failed: $*" >&2
+		exit $poop
+	fi
 }
 
 
@@ -38,23 +77,22 @@ NOTES:
 #	repo_exists_()
 #		$1	:	REPO
 #		$2	:	quiet? (use as internal function, don't output errors)
+# Checks if '$1' exists in '$REPO_'
+#+	(which may be .../git or .../archive, depending on flags).
+# Returns 0 on success.
 repo_exists_()
 {
 	# ignore null input
 	if [[ -z "$1" ]]; then return 1; fi
 
 	# verify toplevel dir exists
-	if [[ ! -d "$REPO_BASE/$1" ]]; then
-		if [[ -z "$2" ]]; then
-			echo "Repo '$1' doesn't exist. Cannot archive" >&2
-		fi
+	if [[ ! -d "$REPO_/$1" ]]; then
+		echo_q "Repo '$1' doesn't exist in '$REPO_'" $2
 		return 1
 	fi
 	# verify it is, in fact, a git repo
-	if [[ ! -e "$REPO_BASE/$1/HEAD" ]]; then
-		if [[ -z "$2" ]]; then
-			echo "'$REPO_BASE/$1' exists but is not a valid Git repo" >&2
-		fi
+	if [[ ! -e "$REPO_/$1/HEAD" ]]; then
+		echo_q "'$REPO_BASE/$1' exists but is not a valid Git repo" $2
 		return 1
 	fi
 
@@ -71,7 +109,7 @@ repo_exists_()
 # Internal utility: unmount all repos for a certain user
 user_umount_()
 {
-	mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $DBG_ {}
+	mount | grep "/home/$2" | cut -d ' ' -f 3 | xargs -I{} umount -f $V_ {}
 }
 
 #	user_exists_()
@@ -84,21 +122,22 @@ user_exists_()
 
 	# user must exist and must have the proper shell
 	if ! getent passwd | grep -E "^$1:.*git-shell$" >/dev/null; then
-		if [[ -z "$2" ]]; then
-			echo "user '$1' doesn't exist or doesn't log into git-shell" >&2
-		fi
+		echo_q "user '$1' doesn't exist or doesn't log into git-shell" $2
 		return 1
 	fi
-	# if INACTIVE_ then user MUST be inactive, and vice-versa
-	if [[ "$INACTIVE_" && ! -e "/home/$1/.ssh/disabled" ]]; then
-		if [[ -z "$2" ]]; then
-			echo "'-i|--inactive' set but user '$1' not disabled"
-		fi
+
+	# ls -la expected to give PRECISELY 4 lines, e.g.:
+	#+	total 12K
+	#+	dr-x------ 2 gitty gitty 4.0K Feb 17 23:32 .
+	#+	drwxr-xr-x 5 gitty gitty 4.0K Feb 17 13:35 ..
+	#+	-r-------- 1 gitty gitty 1.2K Feb 17 23:53 authorized_keys
+	if [[ $(ls -la "/home/$1/.ssh" | wc -l) != 4 ]]; then
+		echo_q "file-count in '/home/$1/.ssh' not EXACTLY 3; possible insecure condition" $2
 		return 1
-	elif [[ ! "$INACTIVE_" && -e "/home/$1/.ssh/disabled" ]]; then
-		if [[ -z "$2" ]]; then
-			echo "no flag '-i|--inactive' but user '$1' disabled"
-		fi
+	fi
+	# user must have PROPER keys file (depending on whether "active" or not)
+	if [[ ! -e /home/$1/$COND_ ]]; then
+		echo_q "expecting '$COND_' for user '$1'; is the '-i' flag correctly set?" $2
 		return 1
 	fi
 
@@ -110,14 +149,11 @@ user_exists_()
 user_ssh_perms_()
 {
 	# mark user changed
-	touch "/home/$1/$COND_"
-		poop=$?; if (( $poop )); then exit $poop; fi
+	do_die touch "/home/$1/$COND_"
 
 	# force ownership and permissions
-	chown $DBG_ -R "$1": "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chmod $DBG_ -R ugo-rwx,u+rX "/home/$1/.ssh"
-		poop=$?; if (( $poop )); then exit $poop; fi
+	do_die chown $V_ -R "$1": "/home/$1/.ssh"
+	do_die chmod $V_ -R ugo-rwx,u+rX "/home/$1/.ssh"
 }
 
 
@@ -158,14 +194,13 @@ mount_refresh_()
 {
 	# Unmounts any instances connected to '$1'
 	if user_exists_ "$1" "quiet"; then
-		mount | grep "/home/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f {}
+		mount | grep "/home/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f $V_ {}
 	elif repo_exists_ "$1" "quiet"; then
-		mount | grep "$REPO_BASE/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f {}
+		mount | grep "$REPO_/$1" | cut -d ' ' -f 1 | xargs -I{} umount -f $V_ {}
 	fi
 
 	# mount things according to fstab
-	mount -a -t none $DBG_ | grep -v ignored
-		poop=$?; if (( $poop )); then exit $poop; fi
+	do_die mount -a -t none $V_ | grep -v ignored
 }
 
 
@@ -175,7 +210,7 @@ mount_refresh_()
 
 #	repo()
 #
-#		$1	:	{ls|add|archive|exhume}
+#		$1	:	{ls|add|mod|rm}
 #		$2	:	REPO
 #
 # TODO implement quotas
@@ -185,26 +220,17 @@ repo()
 	# Show either active or inactive repos, user $2 as a filter string
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		# list active or inactive repos?
-		if [[ ! $INACTIVE_ ]]; then
-			SEARCH_="$REPO_BASE"
-			STUB_=add # used in building DUMP_ further down
-		else
-			SEARCH_="$ARCH_BASE"
-			STUB_=disable
-		fi
-
-		# handle '-v|--dump' flag by recreating command
-		if [[ $DBG_ ]]; then
-			DUMP_="repo $STUB_ "
+		if [[ $V_ ]]; then
+			DUMP_="repo add "
 		fi
 
 		# list them
-		for r in $(find "$SEARCH_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
+		for r in $(find "$REPO_" -mindepth 1 -maxdepth 1 -type d ! -name "lost+found" \
 				-exec basename '{}' \; \
 			| grep "$2" \
 			| sort)
 		do
-			echo "${DUMP_}$r"
+			echo "${DUMP_}$r${A_}"
 		done
 		return
 	fi
@@ -220,85 +246,63 @@ repo()
 		exit 1
 	fi
 
-	# force existence of REPO and ARCH
-	mkdir -p $DBG_ "$REPO_BASE" "$ARCH_BASE"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chown $DBG_ root: "$REPO_BASE" "$ARCH_BASE"
-		poop=$?; if (( $poop )); then exit $poop; fi
-	chmod $DBG_ u=rwx,go-rwx "$REPO_BASE" "$ARCH_BASE"
-		poop=$?; if (( $poop )); then exit $poop; fi
+	# force existence base directory
+	do_die mkdir -p $V_ "$REPO_"
+	do_die chown $V_ root: "$REPO_"
+	do_die chmod $V_ u=rwx,go-rwx "$REPO_"
 
 	case $1 in
 		#	add
-		# add a new repository;
-		# reactivate a disabled repo;
-		# validate/force settings on an existing active repo.
-		new|add|en|enable)
+		# force a repo to exist and have the proper archived|active state
+		add|mod)
 			# repo dir doesn't currently exist
-			if [[ ! -d "$REPO_BASE/$2" ]]; then
+			if ! repo_exists_ "$2" "quiet"; then
+				# check for homonymous directory
+				if [[ -d "$REPO_/$2" ]]; then
+					echo_die "'$REPO_/$2' already exists but is not a Git repo"
+				fi
 
-				# if it exists but is disabled, move it back
-				if [[ -d "$ARCH_BASE/$2" ]]; then
-					mv $DBG_ "$ARCH_BASE/$2" "$REPO_BASE/$2"
-					poop=$?; if (( $poop )); then exit $poop; fi
-					# restore fstab entries for repo
-					cat "$ARCH_BASE/${2}.mounts" >>/etc/fstab
-					rm -f $DBG_ "$ARCH_BASE/${2}.mounts"
-					sort -o /etc/fstab /etc/fstab
+				# if it exists but is on the "other side", move it
+				if [[ -d "$REPO_OTHER_/$2" ]]; then
+					do_die mv $V_ "$REPO_OTHER_/$2" "$REPO_/$2"
+					# was archived? restore fstab entries for repo
+					if [[ -e "$REPO_/${2}.mounts" ]]; then 
+						cat "$REPO_/${2}.mounts" >>/etc/fstab
+						rm -f $V_ "$REPO_/${2}.mounts"
+						sort -o /etc/fstab /etc/fstab
+					# we are archiving: preserve fstab entries
+					else
+						touch "$REPO_/${2}.mounts"
+						do_die chmod go-rwx "$REPO_/${2}.mounts"
+						sed -rn '/^\S+'"$2"'\s/ p' /etc/fstab
+							>"$REPO_/${2}.mounts"
+						# recurse: purge mounts
+						repo purge_mounts $2
+					fi
 
 				# no? create it
 				else
-					mkdir $DBG_ "$REPO_BASE/$2"
-					poop=$?; if (( $poop )); then exit $poop; fi
-					pushd "$REPO_BASE/$2"
-					git init --bare
-					poop=$?; if (( $poop )); then popd; rm -rf "$REPO_BASE/$2"; exit $poop; fi
+					do_die mkdir $V_ "$REPO_/$2"
+					pushd "$REPO_/$2"
+					do_die git init --bare
 				fi
 			fi
 
 			# make sure repo-specific group exists
 			if ! getent group "git_$2" >/dev/null; then
-				addgroup --force-badname "git_$2"
-					poop=$?; if (( $poop )); then exit $poop; fi
+				do_die addgroup --force-badname "git_$2"
 			fi
 
 			# force ownership and permissions on repo dir
-			chown -R nobody:"git_$2" "$REPO_BASE/$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
-			chmod -R u=rwX,g=rwXs,o=rX,o-w "$REPO_BASE/$2" # notice group sticky bit
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die chown -R nobody:"git_$2" "$REPO_/$2"
+			do_die chmod -R u=rwX,g=rwXs,o=rX,o-w "$REPO_/$2" # notice group sticky bit
 			# This is to allow git to write temporary account stuff
 			#+	when a read-only user pulls
 			# TODO any way around this? (if so, change fstab mount stanza to say "r"
-			chmod o+w "$REPO_BASE/$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die chmod o+w "$REPO_/$2"
 
 			# refresh mounts
 			mount_refresh_ "$2"
-			;;
-
-		#	disable
-		# Archive an existing repo; disable access by users but save
-		#+	their ~/[repo] mountpoints intact for later restoration.
-		# NOTE that some mountpoints may have been DISABLED, we need to preserve this.
-		dis|disable)
-			# verify repo exists in the first place
-			if ! repo_exists_ "$2"; then exit 1; fi
-
-			# verify no archived project by the same name
-			if [[ -d "$ARCH_BASE/$2" ]]; then
-				echo "Archived repo '$2' already exists." >&2
-				exit 1
-			fi
-
-			# preserve mount entries from fstab
-			sed -rn '\|'"$REPO_BASE/$2"'| p' /etc/fstab >"$ARCH_BASE/${2}.mounts"
-			# recurse: purge mounts
-			repo purge_mounts $2
-
-			# move repo to archive
-			mv $DBG_ "$REPO_BASE/$2" "$ARCH_BASE/$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
 			;;
 
 		#	rem
@@ -309,23 +313,22 @@ repo()
 			# purge mounts
 			repo purge_mounts $2
 			# remove all mount dirs
-			find /home -type d -name "$2" -exec rm -rf $DBG_ '{}' \; 2>/dev/null
+			find /home -type d -name "$2" -exec rm -rf $V_ '{}' \; 2>/dev/null
 
-			# remove repo and/or archive dir, archived mounts list
-			rm -rf $DBG_ "$REPO_BASE/$2" "$ARCH_BASE/${2}*"
+			# remove repo (whether archived or not)
+			rm -rf $V_ "$REPO_/$2*" # '*' so archived mounts list is removed also
 
 			#remove group
-			groupdel "git_$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die groupdel "git_$2"
 			;;
 
 		#	purge_mounts
 		# unmount any bind-mounts pointing at repo, remove them from fstab
 		purge_mounts)
 			# unmount all instances of repo
-			find /home -type d -name "$2" -exec umount -f $DBG_ '{}' 2>/dev/null \;
-			# delete them, and empty lines, too
-			sed -i"" -re '\|'"$REPO_BASE/$2"'| d' -e '/^\s*$/ d' /etc/fstab
+			find /home -type d -name "$2" -exec umount -f $V_ '{}' 2>/dev/null \;
+			# delete them
+			sed -i"" -r '/^\S+'"$2"'\s/ d' /etc/fstab
 			;;
 
 		*)
@@ -338,20 +341,16 @@ repo()
 
 
 #	user()
-#		$1	:	{ls|add|disable|rem}
+#		$1	:	{ls|add|mod|rem}
 #		$2	:	USER
 user()
 {
 	# 	list
 	# Show either active or inactive users
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
-		# handle '-v|--dump' flag by prepending the command to recreate
-		if [[ $DBG_ ]]; then
-			if [[ $COND_ =~ disabled ]]; then
-				DUMP_="user disable "
-			else
-				DUMP_="user add "
-			fi
+		# handle '-v' flag by prepending the command to recreate
+		if [[ $V_ ]]; then
+			DUMP_="user add$D_ "
 		fi
 		# only go through "git-shell" users; user $2 as a filter string
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
@@ -373,7 +372,7 @@ user()
 		#	add
 		# Add a new user; Enable a previously disabled user; Validate a user.
 		# An active user can ONLY log in via SSH, to a git-shell.
-		new|add|en|enable)
+		add|mod)
 			EXIST=$(getent passwd $2)
 			# handle existing users gracefully
 			if [[ $EXIST ]]; then
@@ -392,44 +391,32 @@ Use '--force' to proceed despite this." >&2
 			fi
 
 			# ensure there are no enabled git-shell commands
-			rm -f $DBG_ "/home/$2/git-shell-commands"
+			rm -f $V_ "/home/$2/git-shell-commands"
 
 			# Force proper SSH directory structure.
-			mkdir -p $DBG_ "/home/$2/.ssh"
-				poop=$?; if (( $poop )); then exit $poop; fi
-			# If user was previously disabled, restore the "disabled" file
-			#+	in ~/.ssh
-			if [[ -e "/home/$2/.ssh/disabled" ]]; then
-				mv $DBG_ "/home/$2/.ssh/disabled" "/home/$2/.ssh/authorized_keys"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die mkdir -p $V_ "/home/$2/.ssh"
+			# Toggle user enable/disable state (if necessary)
+			#+	by moving 'authorized_keys' file
+			if [[ -e "/home/$2/$COND_OTHER_" ]]; then
+				do_die mv $V_ "/home/$2/$COND_OTHER_" "/home/$2/$COND_"
 			fi
 	
 			# handle SSH directory permissions
 			user_ssh_perms_ "$2"
 
-			# enable any commented-out mount entries for user
-			sed -i"" -r 's|^#('"$REPO_BASE"'.*/home/'"$2"'.*)|\1|g' /etc/fstab
-			sort -o /etc/fstab /etc/fstab
-			# update mounts
-			mount_refresh_ "$2"
-			;;
-
-		#	disable
-		# To disable a user, rename their authorized_keys file
-		dis|disable)
-			# user must exist and be inactive/enabled according to '-i' flag
-			if ! user_exists_ "$2"; then exit 1; fi
-
-			# rename authorized_keys file
-			if [[ -e "/home/$2/.ssh/authorized_keys" ]]; then
-				mv "/home/$2/.ssh/authorized_keys" "/home/$2/.ssh/disabled"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			# if user should be enabled
+			if [[ ! $D_ ]]; then
+				# enable any commented-out mount entries for user
+				sed -i"" -r 's|^#('"$REPO_BASE"'.*/home/'"$2"'.*)|\1|g' /etc/fstab
+				sort -o /etc/fstab /etc/fstab
+				# update mounts
+				mount_refresh_ "$2"
+			else
+				# unmount repos
+				user_umount_ "$2"
+				# disable any mount entries for user
+				sed -i"" -r 's|(\S+\s+/home/'"$2"'.*)|#\1|g' /etc/fstab
 			fi
-
-			# unmount repos
-			user_umount_ "$2"
-			# disable any mount entries for user
-			sed -i"" -r 's|^('"$REPO_BASE"'.*/home/'"$2"'.*)|#\1|g' /etc/fstab
 			;;
 
 		#	rem
@@ -439,17 +426,15 @@ Use '--force' to proceed despite this." >&2
 			if ! user_exists_ "$2"; then exit 1; fi
 
 			# remove user
-			deluser "$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die deluser "$2"
 
 			# unmount repos
 			user_umount_ "$2"
 			# remove all mount entries
-			sed -i"" -r '\|.*'"/home/$2"'.*| d' /etc/fstab
+			sed -i"" -r '\|.*/home/'"$2"'.*| d' /etc/fstab
 
 			# remove home dir
-			rm -rf $DBG_ "/home/$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			do_die rm -rf $V_ "/home/$2"
 			;;
 
 		*)
@@ -462,7 +447,7 @@ Use '--force' to proceed despite this." >&2
 
 
 #	key()
-#		$1	:	{ls|add|rem}
+#		$1	:	{ls|add|mod|rem}
 #		$2	:	USER
 #		$3	:	KEY
 key()
@@ -473,9 +458,9 @@ key()
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			# only show users who are enabled/disabled as per '-i' flag
 			if [[ -e /home/$u/$COND_ ]]; then
-				# handle '-v|--dump' flag by printing full command to recreate
-				if [[ $DBG_ ]]; then
-					sed -rn 's/.*(ssh-[rd]s[as].*)/'"key add ${I_}$u "'\1/p' \
+				# handle '-v' flag by printing full command to recreate
+				if [[ $V_ ]]; then
+					sed -rn 's/.*(ssh-[rd]s[as].*)/'"key add$D_ $u "'\1/p' \
 						/home/$u/$COND_
 				else
 					sed -rn 's/.*(ssh-[rd]s[as]) \S+(\S{24}) (\S+)$/'"$u"'\t\1 ...\2 \3/p' \
@@ -496,7 +481,7 @@ key()
 	# user must exist and be inactive/enabled according to '-i' flag
 	if ! user_exists_ "$2"; then exit 1; fi
 
-	 #because key may show up as multiple fields
+	#because key may show up as multiple fields, or ONE quoted field :P
 	CMD_="$1";
 	USR_="$2";
 	shift; shift
@@ -526,10 +511,9 @@ key()
 	case $CMD_ in
 		#	add
 		# Add $KEY_ to user $USR_
-		new|add|en|enable)
-			echo "no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc $KEY_" \
+		add|mod)
+			do_die echo "no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc $KEY_" \
 				>> "/home/$USR_/$COND_"
-			poop=$?; if (( $poop )); then exit $poop; fi
 			# sort and de-dup keys
 			sort -u -o "/home/$USR_/$COND_" "/home/$USR_/$COND_"
 			# ssh directory is kosher
@@ -565,18 +549,15 @@ auth()
 	# 	list
 	# Show either active or inactive authorizations, use $2 as a filter
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
-		# prepend a '#' to search for commented-out (disabled) users
-		if [[ ! $INACTIVE_ ]]; then
-			LEAD='s|^\s*'
-		else
-			LEAD='s|^\s*#\s*'
-		fi
-		ARR=( $(sed -rn "$LEAD""$REPO_BASE"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' \
-			/etc/fstab | grep "$2") )
+		# do we search fstab or the archived mounts lists?
+		# INACTIVE is "#" when expecting disabled repos
+		ARR=( $(sed -rn 's|^'"${INACTIVE_}$REPO_"'/(\S+)\s+/home/([^/]+).*|\1/\2|p' \
+			/etc/fstab $REPO_/*.mounts 2>/dev/null \
+			| grep "$2") )
 
-		# handle '-v|--dump' flag by printing command stub
-		if [[ $DBG_ ]]; then
-			DUMP_="auth add $I_"
+		# handle '-v' flag by printing command stub
+		if [[ $V_ ]]; then
+			DUMP_="auth add$D_$A_ "
 		fi
 
 		# print, marking write-enabled auths with 'w'
@@ -584,11 +565,11 @@ auth()
 			# Apologies for making the delimiter '/', but it's the ONE character
 			#+	I'm sure won't show up in either repo or user names.
 			if getent group git_${i/%\/*/} | grep ${i/#*\//} >/dev/null; then
-				W="-w"
+				W_=" -w"
 			else
-				W=""
+				W_=""
 			fi
-			printf "${DUMP_}${i/#*\//} ${i/%\/*/} $W\n"
+			printf "${DUMP_}${i/#*\//} ${i/%\/*/}$W_\n"
 		done | column -t
 		return 0
 	fi
@@ -609,27 +590,30 @@ auth()
 	case $1 in
 		#	add
 		# Allow/verify that user $2 can access repo $3
-		new|add|en|enable|mod|modify)
+		add|mod)
 			# add user to repo-specific group so they can write?
-			if [[ $WRITE_ ]]; then
-				usermod -s /usr/bin/git-shell -a -G "git_$3" "$2"
-				poop=$?; if (( $poop )); then exit $poop; fi
+			if [[ $W_ ]]; then
+				do_die usermod -s /usr/bin/git-shell -a -G "git_$3" "$2"
 			# in case user COULD write previously, disable this
 			else
 				deluser "$2" "git_$3" 2>/dev/null
 			fi
 
 			# make sure a mountpoint exists for the bind mount
-			mkdir -p $DBG_ "/home/$2/$3"
-				poop=$?; if (( $poop )); then exit $poop; fi
-			# Make sure fstab entry exists for bind mount, 
-			#+	use 'while' to ensure its printed either way.
-			# NOTE that we insert a commented-out entry if user is disabled/inactive
-			while ! grep -E "/home/$2/$3" /etc/fstab; do
-				printf "${INACTIVE_}$REPO_BASE/$3\t/home/$2/$3\tnone\tbind,noexec,nobootwait\t0\t0" \
-					>>/etc/fstab
-				sort -o /etc/fstab /etc/fstab
-			done
+			do_die mkdir -p $V_ "/home/$2/$3"
+
+			# if repo is active, manipulate fstab; else manipulate
+			#+	the appropriate ".mounts" listing
+			if [[ ! $A_ ]]; then
+				FSTAB=/etc/fstab
+			else
+				FSTAB="$REPO_/${3}.mounts"
+			fi
+			# always insert
+			echo -e "${INACTIVE_}$REPO_/$3\t/home/$2/$3\tnone\tbind,noexec,nobootwait\t0\t0" \
+				>>"$FSTAB"
+			# ... and de-dup afterwards
+			sort -u -o "$FSTAB" "$FSTAB"
 			# update mounts
 			mount_refresh_ "$3"
 			;;
@@ -639,8 +623,7 @@ auth()
 		rm|rem|del|delete)
 			# unmount bind if mounted
 			if mount | grep "/home/$2/$3" >/dev/null; then
-				umount -f $DBG_ "/home/$2/$3"
-				poop=$?; if (( $poop )); then exit $poop; fi
+				do_die umount -f $V_ "/home/$2/$3"
 			fi
 
 			# remove entry from fstab (whether commented out or not)
@@ -665,13 +648,15 @@ auth()
 dump()
 {
 	bash -c "$0 repo ls -v" 2>/dev/null
-	bash -c "$0 repo ls -v -i" 2>/dev/null
+	bash -c "$0 repo ls -v -a" 2>/dev/null
 	bash -c "$0 user ls -v" 2>/dev/null
 	bash -c "$0 key ls -v" 2>/dev/null
-	bash -c "$0 user ls -v -i" 2>/dev/null
-	bash -c "$0 key ls -v -i" 2>/dev/null
+	bash -c "$0 user ls -v -d" 2>/dev/null
+	bash -c "$0 key ls -v -d" 2>/dev/null
 	bash -c "$0 auth ls -v" 2>/dev/null
-	bash -c "$0 auth ls -v -i" 2>/dev/null
+	bash -c "$0 auth ls -v -d" 2>/dev/null
+	bash -c "$0 auth ls -v -a" 2>/dev/null
+	bash -c "$0 auth ls -v -d -a" 2>/dev/null
 }
 
 
@@ -679,21 +664,25 @@ dump()
 ##			main				##
 ##########################################################
 
-# static assumptions
-REPO_BASE="/usr/src/git"	# active repos go here
-ARCH_BASE="/usr/src/archive"	# disabled repos go here
-
-# get arguments
-QUOTA_=
-WRITE_=
-DBG_=
+# generic flags
+V_=
 DUMP_=
+FORCE_=
+# 'repo' args
+A_=
+REPO_="/usr/src/git" # look at enabled repos
+REPO_OTHER_="/usr/src/archive" # "other side" (aka: archived) repos here
+QUOTA_=
+# 'user' and 'key' args
+D_=
 INACTIVE_=
 COND_=".ssh/authorized_keys" # active users have their keys here
-I_=
+COND_OTHER_=".ssh/disabled" # and the reciprocal is "inactive"
+# 'auth' args
+W_=
+# parsing variables
 MODE_=
 MODE_ARGS_=()
-FORCE_=
 while [[ "$1" ]]; do
 	case $1 in
 	##
@@ -703,30 +692,40 @@ while [[ "$1" ]]; do
 		usage
 		exit 0
 		;;
-	-v|--verbose|-d|--dump)
-		DBG_="-v" # do double-duty as a command flag ;)
+	-v|--verbose)
+		V_=" -v" # do double-duty as a command flag ;)
 		shift
 		;;
-	-i|--inactive)
-		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
-		COND_=".ssh/disabled" # disabled users have keys in '.ssh/disabled'
-		I_="-i "
+	-a|--archived)
+		A_=" -a"
+		REPO_="/usr/src/archive" # look at archived repos
+		REPO_OTHER_="/usr/src/git" # "other side" (enabled) repos here
 		shift
 		;;
 	-q|--quota)
 		QUOTA_="$2"
-		echo "quotas not yet implemented" >&2
-		exit 1
+		echo_die "quotas not yet implemented"
 		shift; shift
 		;;
+	-d|--disabled)
+		D_=" -d"
+		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
+		COND_=".ssh/disabled" # users are expected to be disabled
+		COND_OTHER_=".ssh/authorized_keys" # and the reciprocal is "enabled"
+		shift
+		;;
 	-w|--write)
-		WRITE_=1
+		W_=" -w"
 		shift
 		;;
 	-f|--force)
 		FORCE_=1
 		shift
 		;;
+	-?|--*)
+		echo_die "option '$1' unknown"
+		;;
+
 	##
 	# modes
 	##
