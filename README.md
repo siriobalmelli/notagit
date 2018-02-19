@@ -101,12 +101,10 @@ If you would like to hack on the documentation:
 
 ## TODO
 
-- Show '-w' flag on `gsb.sh auth ls`
 - Quotas on .git repos (to stop users from crashing server)
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
-- Tests for gsb.sh (need a VM or at the very least a docker?)
 
 ## Naming
 

@@ -230,8 +230,8 @@ repo()
 			| grep "$2" \
 			| sort)
 		do
-			echo "${DUMP_}$r${A_}"
-		done
+			echo "${DUMP_} $r ${A_}"
+		done | column -t
 		return
 	fi
 
@@ -266,9 +266,12 @@ repo()
 				if [[ -d "$REPO_OTHER_/$2" ]]; then
 					do_die mv $V_ "$REPO_OTHER_/$2" "$REPO_/$2"
 					# was archived? restore fstab entries for repo
-					if [[ -e "$REPO_/${2}.mounts" ]]; then 
-						cat "$REPO_/${2}.mounts" >>/etc/fstab
-						rm -f $V_ "$REPO_/${2}.mounts"
+					if [[ -e "$REPO_OTHER_/${2}.mounts" ]]; then
+						# sed call necessary because some auths
+						#+	may have been added while repo was archived.
+						sed -e 's|'"$REPO_OTHER_"'|'"$REPO_"'|g' \
+							"$REPO_OTHER_/${2}.mounts" >>/etc/fstab
+						rm -f $V_ "$REPO_OTHER_/${2}.mounts"
 						sort -o /etc/fstab /etc/fstab
 					# we are archiving: preserve fstab entries
 					else
@@ -290,7 +293,8 @@ repo()
 
 			# make sure repo-specific group exists
 			if ! getent group "git_$2" >/dev/null; then
-				do_die addgroup --force-badname "git_$2"
+				do_die addgroup --force-badname "git_$2" \
+					| grep -v "Done"
 			fi
 
 			# force ownership and permissions on repo dir
@@ -316,10 +320,10 @@ repo()
 			find /home -type d -name "$2" -exec rm -rf $V_ '{}' \; 2>/dev/null
 
 			# remove repo (whether archived or not)
-			rm -rf $V_ "$REPO_/$2*" # '*' so archived mounts list is removed also
+			rm -rf $V_ $REPO_/$2* # '*' so archived mounts list is removed also
 
 			#remove group
-			do_die groupdel "git_$2"
+			groupdel $V_ "git_$2" 2>/dev/null
 			;;
 
 		#	purge_mounts
@@ -328,7 +332,8 @@ repo()
 			# unmount all instances of repo
 			find /home -type d -name "$2" -exec umount -f $V_ '{}' 2>/dev/null \;
 			# delete them
-			sed -i"" -r '/^\S+'"$2"'\s/ d' /etc/fstab
+			sed -i"" -r '/^\S+'"$2"'\s/ d' /etc/fstab \
+				$REPO_/*.mounts $REPO_OTHER_/*.mounts 2>/dev/null
 			;;
 
 		*)
@@ -337,6 +342,7 @@ repo()
 			exit 1
 			;;
 	esac
+	return 0
 }
 
 
@@ -350,14 +356,14 @@ user()
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		# handle '-v' flag by prepending the command to recreate
 		if [[ $V_ ]]; then
-			DUMP_="user add$D_ "
+			DUMP_="user add $D_"
 		fi
 		# only go through "git-shell" users; user $2 as a filter string
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			if [[ -e "/home/$u/$COND_" ]]; then
-				echo "${DUMP_}$u"
+				echo "${DUMP_} $u"
 			fi
-		done
+		done | column -t
 		return 0
 	fi
 
@@ -387,7 +393,8 @@ Use '--force' to proceed despite this." >&2
 				usermod -s /usr/bin/git-shell "$2" 2>/dev/null
 			# add new users
 			else
-				adduser --shell /usr/bin/git-shell --disabled-password --gecos "" "$2"
+				adduser --shell /usr/bin/git-shell --disabled-password --gecos "" "$2" \
+					| grep "Adding"
 			fi
 
 			# ensure there are no enabled git-shell commands
@@ -400,7 +407,9 @@ Use '--force' to proceed despite this." >&2
 			if [[ -e "/home/$2/$COND_OTHER_" ]]; then
 				do_die mv $V_ "/home/$2/$COND_OTHER_" "/home/$2/$COND_"
 			fi
-	
+
+			# always force file existing and update timestamp
+			do_die touch /home/$2/$COND_
 			# handle SSH directory permissions
 			user_ssh_perms_ "$2"
 
@@ -415,7 +424,7 @@ Use '--force' to proceed despite this." >&2
 				# unmount repos
 				user_umount_ "$2"
 				# disable any mount entries for user
-				sed -i"" -r 's|(\S+\s+/home/'"$2"'.*)|#\1|g' /etc/fstab
+				sed -i"" -r 's|^([^#]+\s+/home/'"$2"'.*)|#\1|g' /etc/fstab
 			fi
 			;;
 
@@ -426,12 +435,13 @@ Use '--force' to proceed despite this." >&2
 			if ! user_exists_ "$2"; then exit 1; fi
 
 			# remove user
-			do_die deluser "$2"
+			do_die deluser "$2" | grep "Removing"
 
 			# unmount repos
 			user_umount_ "$2"
 			# remove all mount entries
-			sed -i"" -r '\|.*/home/'"$2"'.*| d' /etc/fstab
+			sed -i"" -r '\|.*/home/'"$2"'.*| d' /etc/fstab \
+				$REPO_/*.mounts $REPO_OTHER_/*.mounts 2>/dev/null
 
 			# remove home dir
 			do_die rm -rf $V_ "/home/$2"
@@ -443,6 +453,7 @@ Use '--force' to proceed despite this." >&2
 			exit 1
 			;;
 	esac
+	return 0
 }
 
 
@@ -467,7 +478,7 @@ key()
 						/home/$u/$COND_
 				fi
 			fi
-		done
+		done | column -t
 		return 0
 	fi
 
@@ -537,6 +548,7 @@ key()
 			exit 1
 			;;
 	esac
+	return 0
 }
 
 
@@ -557,7 +569,7 @@ auth()
 
 		# handle '-v' flag by printing command stub
 		if [[ $V_ ]]; then
-			DUMP_="auth add$D_$A_ "
+			DUMP_="auth add"
 		fi
 
 		# print, marking write-enabled auths with 'w'
@@ -565,11 +577,11 @@ auth()
 			# Apologies for making the delimiter '/', but it's the ONE character
 			#+	I'm sure won't show up in either repo or user names.
 			if getent group git_${i/%\/*/} | grep ${i/#*\//} >/dev/null; then
-				W_=" -w"
+				W_="-w"
 			else
 				W_=""
 			fi
-			printf "${DUMP_}${i/#*\//} ${i/%\/*/}$W_\n"
+			echo -e "${DUMP_} $D_ ${i/#*\//} $A_ ${i/%\/*/} $W_\n"
 		done | column -t
 		return 0
 	fi
@@ -639,6 +651,7 @@ auth()
 			exit 1
 			;;
 	esac
+	return 0
 }
 
 
@@ -657,6 +670,7 @@ dump()
 	bash -c "$0 auth ls -v -d" 2>/dev/null
 	bash -c "$0 auth ls -v -a" 2>/dev/null
 	bash -c "$0 auth ls -v -d -a" 2>/dev/null
+	return 0
 }
 
 
@@ -693,11 +707,11 @@ while [[ "$1" ]]; do
 		exit 0
 		;;
 	-v|--verbose)
-		V_=" -v" # do double-duty as a command flag ;)
+		V_="-v" # do double-duty as a command flag ;)
 		shift
 		;;
 	-a|--archived)
-		A_=" -a"
+		A_="-a"
 		REPO_="/usr/src/archive" # look at archived repos
 		REPO_OTHER_="/usr/src/git" # "other side" (enabled) repos here
 		shift
@@ -708,14 +722,14 @@ while [[ "$1" ]]; do
 		shift; shift
 		;;
 	-d|--disabled)
-		D_=" -d"
+		D_="-d"
 		INACTIVE_='#' # do double-duty as a leading comment in /etc/fstab ;)
 		COND_=".ssh/disabled" # users are expected to be disabled
 		COND_OTHER_=".ssh/authorized_keys" # and the reciprocal is "enabled"
 		shift
 		;;
 	-w|--write)
-		W_=" -w"
+		W_="-w"
 		shift
 		;;
 	-f|--force)

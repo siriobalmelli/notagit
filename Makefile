@@ -19,7 +19,8 @@ endif
 
 .PHONY: test install uninstall
 test :
-	$(wildcard tests/*.sh)
+	tests/gsb_test.sh
+	tests/gitsync_test.sh
 
 install :
 	@for a in $(SCRIPT); do \
