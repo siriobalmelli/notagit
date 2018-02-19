@@ -277,8 +277,8 @@ repo()
 					else
 						touch "$REPO_/${2}.mounts"
 						do_die chmod go-rwx "$REPO_/${2}.mounts"
-						sed -rn '/^\S+'"$2"'\s/ p' /etc/fstab
-							>"$REPO_/${2}.mounts"
+						sed -rn 's|^'"$REPO_OTHER_/$2"'(\s.*)|'"$REPO_/$2"'\1|p' \
+							/etc/fstab >"$REPO_/${2}.mounts"
 						# recurse: purge mounts
 						repo purge_mounts $2
 					fi
@@ -331,9 +331,8 @@ repo()
 		purge_mounts)
 			# unmount all instances of repo
 			find /home -type d -name "$2" -exec umount -f $V_ '{}' 2>/dev/null \;
-			# delete them
-			sed -i"" -r '/^\S+'"$2"'\s/ d' /etc/fstab \
-				$REPO_/*.mounts $REPO_OTHER_/*.mounts 2>/dev/null
+			# delete them from fstab
+			sed -i"" -r '/^\S+'"$2"'\s/ d' /etc/fstab
 			;;
 
 		*)
@@ -356,12 +355,12 @@ user()
 	if [[ "$1" == "ls" || "$1" == "list" ]]; then
 		# handle '-v' flag by prepending the command to recreate
 		if [[ $V_ ]]; then
-			DUMP_="user add $D_"
+			DUMP_="user add"
 		fi
 		# only go through "git-shell" users; user $2 as a filter string
 		for u in $(getent passwd | grep "${2}.*git-shell" | cut -d ':' -f 1 | sort); do
 			if [[ -e "/home/$u/$COND_" ]]; then
-				echo "${DUMP_} $u"
+				echo "${DUMP_} $D_ $u"
 			fi
 		done | column -t
 		return 0
@@ -471,7 +470,7 @@ key()
 			if [[ -e /home/$u/$COND_ ]]; then
 				# handle '-v' flag by printing full command to recreate
 				if [[ $V_ ]]; then
-					sed -rn 's/.*(ssh-[rd]s[as].*)/'"key add$D_ $u "'\1/p' \
+					sed -rn 's/.*(ssh-[rd]s[as].*)/'"key add $D_ $u "'\1/p' \
 						/home/$u/$COND_
 				else
 					sed -rn 's/.*(ssh-[rd]s[as]) \S+(\S{24}) (\S+)$/'"$u"'\t\1 ...\2 \3/p' \
@@ -639,10 +638,11 @@ auth()
 			fi
 
 			# remove entry from fstab (whether commented out or not)
-			sed -i"" -r '\|/home/'"$2/$3"'| d' /etc/fstab
+			sed -i"" -r '\|/home/'"$2/$3"'| d' /etc/fstab \
+				$REPO_/*.mounts $REPO_OTHER_/*.mounts 2>/dev/null
 
 			# remove user from group
-			deluser "$2" "git_$3"
+			deluser "$2" "git_$3" 2>/dev/null
 			;;
 
 		*)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # get user agreement to brick their system
-echo "$0: this test unfortunately modifies system state. OK to proceed? (yes|no)" >&2
+echo "$0: this test unfortunately modifies system state. OK to proceed? If in doubt say no. (yes|no)" >&2
 read ACK
 if [ ! `echo $ACK | grep ^[Yy]` ]; then
 	exit 0
@@ -77,7 +77,7 @@ EXPECT=\
 ub"
 comp_expect sudo ../gsb.sh user ls
 EXPECT=\
-"uc"
+"-d uc"
 comp_expect sudo ../gsb.sh user ls -d
 
 

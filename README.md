@@ -105,6 +105,7 @@ If you would like to hack on the documentation:
 - Possible to have a dedicated directory for .git temp files when read-only users
 	are pulling?
 - Pen testing
+- Tab completion for `gsb.sh`
 
 ## Naming
 

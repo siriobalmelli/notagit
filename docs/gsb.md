@@ -15,23 +15,24 @@ Manage a secure [Git](https://git-scm.com/) server which is accessed via
 ## Synopsis
 
 ```bash
-./gsb.sh [-v|--verbose] [-i|--inactive]
-[-q|--quota MB]   repo	{ls|add|disable|rm}	REPO
-                  user	{ls|add|disable|rm}	USER
-                  key	{ls|add|rm}		USER KEY
-[-w|--write]      auth	{ls|add|rm}		USER REPO
-                  dump
+usage:
+gsb.sh [-v|--verbose] [-?|-h|--help]
+	repo	{ls|add|mod|rm}	REPO		[-a|--archived] [-q|--quota <QUOTA>]
+	user	{ls|add|mod|rm}	USER		[-d|--disabled]
+	key		{ls|add|mod|rm}	USER KEY	[-d|--disabled]
+	auth	{ls|add|mod|rm}	USER REPO	[-a|--archived] [-d|--disabled]	[-w|--write]
+	dump
 
 Field definition (RegEx):
 REPO	:=	'[a-zA-Z_-]+'
 USER	:=	'[a-zA-Z_-]+'
-KEY	:=	'ssh-[rd]s[as] \S+ \S+' || {filename}
+KEY		:=	'ssh-[rd]s[as] \S+ \S+' || {filename}
 
 NOTES:
+	- 'add' implies "create if not existing, modify if existing"
+		and is synonymous with 'mod'.
 	- script should be run with root privileges.
-	- KEY must be quoted (or must be a file)
-	- quotas not implemented yet
-	- use 'dump|verbose' flag to pipe $0 output back to input,
+	- use '-v|--verbose' flag to pipe gsb.sh output back to input,
 		e.g. to restore a backup or sync two systems
 ```
 
@@ -43,10 +44,9 @@ Working with repos:
 $ sudo gsb.sh repo ls
 $
 $ sudo gsb.sh repo add some_idea
-/usr/src/git/some_idea ~/github_repos/git-shell_bind
+/usr/src/git/some_idea ~/notagit
 Initialized empty Git repository in /usr/src/git/some_idea/
-Adding group `git_some_idea' (GID 1044) ...
-Done.
+Adding group 'git_some_idea' (GID 1003) ...
 $
 $ sudo gsb.sh repo ls
 some_idea
@@ -59,11 +59,9 @@ Working with users and keys:
 $ sudo gsb.sh user ls
 $
 $ sudo gsb.sh user add potter
-Adding user `potter' ...
-Adding new group `potter' (1043) ...
-Adding new user `potter' (1007) with group `potter' ...
-Creating home directory `/home/potter' ...
-Copying files from `/etc/skel' ...
+Adding user 'potter' ...
+Adding new group 'potter' (1004) ...
+Adding new user 'potter' (1002) with group 'potter' ...
 $
 $ sudo gsb.sh user ls
 potter
@@ -73,7 +71,7 @@ potter
 $
 $ sudo gsb.sh key add potter /some/path/potter.pub
 $
-$ sudo bash -x gsb.sh key add potter ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXZRpzaG4A0q6z3YPZbqaCZFcXtWztSz0za2ZmJejdH+bqdwDaQK7CLg+9ohNFKcUSue9GjgodcP0TXvvRq8ZNC6Po/DrV5OShT2znbwdRU/rL3ydsOJL5NQX4XOwXeQgx+NgugjtHVoBnYpiHhkuLazMcqOIhITKkBlllj+oi8NR74BQdsadhOOAzCy8UarFWMz86RC5U57QbehPVIxBdoa7CY76u8rTSuPXySdLS1PpIfiwNAVTXx7QwsrZWHvs3q8Wy3Q6qJDmGIhJXgT+R73Fej+XNWqzYxc0wIh26XvCYj9LOTOwL+IEaohfdXvBonfTwWQOd6bXs1YsEWp9D potter@hogwarts
+$ sudo gsb.sh key add potter ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDXZRpzaG4A0q6z3YPZbqaCZFcXtWztSz0za2ZmJejdH+bqdwDaQK7CLg+9ohNFKcUSue9GjgodcP0TXvvRq8ZNC6Po/DrV5OShT2znbwdRU/rL3ydsOJL5NQX4XOwXeQgx+NgugjtHVoBnYpiHhkuLazMcqOIhITKkBlllj+oi8NR74BQdsadhOOAzCy8UarFWMz86RC5U57QbehPVIxBdoa7CY76u8rTSuPXySdLS1PpIfiwNAVTXx7QwsrZWHvs3q8Wy3Q6qJDmGIhJXgT+R73Fej+XNWqzYxc0wIh26XvCYj9LOTOwL+IEaohfdXvBonfTwWQOd6bXs1YsEWp9D potter@hogwarts
 $
 $ sudo gsb.sh key ls potter
 potter	ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB... potter@somewhere
@@ -84,14 +82,12 @@ $
 Authorize a repo for a user:
 
 ```bash
+$ sudo gsb.sh auth ls
+$
 $ sudo gsb.sh auth add potter some_idea
-/usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
 $
-$ echo "whoops, that was read-only. let's make it writeable"
-"whoops, that was read-only. let's make it writeable"
-$
-$ sudo gsb.sh auth add -w potter some_idea
-/usr/src/git/some_idea	/home/potter/some_idea	none	bind,noexec	0	0
+$ sudo gsb.sh auth ls
+potter  some_idea
 $
 ```
 
@@ -101,7 +97,16 @@ The above git repo can now be cloned (from Potter's machine):
 git clone ssh://potter@[server]/~/some_idea
 ```
 
-To list active repos, users and authorizations, use `ls` (which allows filtering):
+Authorization by default is read-only. Let's make it writeable:
+
+```bash
+$ sudo gsb.sh auth add -w potter some_idea
+$
+$ sudo gsb.sh auth ls
+potter  some_idea  -w
+```
+
+To list repos, users and authorizations, use `ls` (which allows filtering):
 
 ```bash
 $ sudo gsb.sh repo ls idea
@@ -120,76 +125,125 @@ $ sudo gsb.sh auth ls "some_idea*potter"
 $
 ```
 
-Repos and users can be disabled, after which they will show up when the `-i`
-	flag is used on `ls`:
+Users can be disabled with the `-d` flag:
 
 ```bash
-$ sudo gsb.sh user disable potter
+$ sudo gsb.sh user mod -d potter
 $
 $ sudo gsb.sh user ls potter
 $
-$ sudo gsb.sh -i user ls potter
-potter
+$ sudo gsb.sh user ls -d potter
+-d  potter
 $
 $ sudo gsb.sh auth ls potter
-$ sudo gsb.sh -i auth ls potter
-some_idea  potter
+$ sudo gsb.sh auth ls -d potter
+-d  potter  some_idea  -w
 $
 ```
 
-NOTE that an `auth` CANNOT be disabled; it can only be added or removed.
-However, when a `user` or `repo` is disabled, all of their authorizations are saved,
-	and restored when the `user` or `repo` is once again enabled:
+Authorizations for disabled users are restored when they are re-enabled:
 
 ```bash
-$ sudo gsb.sh user add potter
+$ sudo gsb.sh user mod potter
 $
-$ sudo gsb.sh -i auth ls potter
-$
-$ sudo gsb.sh auth ls potter
-some_idea  potter
+$ sudo gsb.sh user ls
+potter
 $
 ```
 
-### dumping and restoring
+Repos can be archived with the `-a` flag:
 
-All `ls` commands run with the `-v` or `--dump` flag are designed
-	to produce output which is suitable input for an invocation of
-	`gsb.sh`:
+```bash
+$ sudo gsb.sh repo mod -a some_idea
+$
+$ sudo gsb.sh repo ls
+$
+$ sudo gsb.sh repo ls -a
+some_idea  -a
+$
+$ sudo gsb.sh auth ls potter
+$
+$ sudo gsb.sh auth ls potter -a
+potter  -a  some_idea  -w
+$
+```
+
+### Piping output back to input
+
+`ls` commands run with the `-v` flag will produce output which is
+	valid input for `gsb.sh`.
+
+This means that piping output of `-v` into `gsb.sh` results in
+	*no change of system state*.
 
 ```bash
 $ sudo gsb.sh ls user
 gitty
 $ sudo gsb.sh ls user -v
 user add gitty
-$ sudo gsb.sh ls user -v | xargs -L 1 sudo ./gsb.sh
+$ sudo gsb.sh ls user -v | xargs -L 1 sudo gsb.sh
 $
 $ sudo gsb.sh ls user
 gitty
 $
 ```
 
-The `dump` command is simply a wrapper for multiple `ls -v` calls,
-	in the order necessary to reproduce a system configuration:
+The `dump` command is a convenient wrapper for multiple `ls -v` calls,
+	in the order necessary to reproduce a complete system configuration.
+
+Here is an example dump, excluding ssh key definitions for clarity.
 
 ```bash
-$ sudo ./gsb.sh dump
-repo add hi
-repo add third
-repo disable hello
-user add gitty
-key add gitty ssh-dss AAAAB3NzaC1kc3MAAACBAMS9UJWg59QOSgYIJ+Et0/URoF6lIavUmCAJrQC0CO2IbaaV+F5BPkV4EH7YR5jxXxA2r+AVs5ZA/u9JkhQ8L1oDP/P+Zgwv4IDByoZ5ExKMBKg2Y9TmtzRA3ahvEvJJNPUS4Ft50vpj7i3bktY5PjceqrH4jI7amsMMmnqyKy5BAAAAFQDrBuiwuUpSxcBZBTYTvJaJH7MkLwAAAIBX8ORtNuvmraoVEUgwp+GFlo/ql28yVM1KfT1WKZdUnzUvVloTPdTDflxxvjqwM8zaXNhaspAQO7bCBGHV6Cgq0QTjEi8voSQyAG4m+PGtzmGPL5tovmm3VwEZgU68Ya3JAVFHy3AFxE4sfiW4XLcy1YJ77JEdCgAqfPtn+r6PEgAAAIEAqt6kHkR+ArcJCo03CMx/O0gQh93pl/V6nbTbNOKVCUlMAPuvqXttkwuw/kUdywgMeR4M6RKfjOSvpiJ/F4sd5x8Lyelh6qQWcUCZ2GbFgj1pHZJ5MwUykmFZJZV3y2aGkLfpwakXuqSJpxqGI89ydFi/QyB0W4sokgSUBUI3VKQ= gitty@work.tv
-key add gitty ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDH3J9WSuqjiwubbB0+RMaq5tULH496S5w+6uRGItuO+JYfIYt+TZ8+acc+DeYj5rjif+EZaLOJqJ8wQhrYkDJoHGcpZA8MHVZ7yOfslqVBn3+KuZvej7qowvVK2j1C+mO1LIOLFetYUd878J8mLBObMLjAhVF+zryGix+sn8gdlridMkCf8GQEs2giCi6MsURoWes6Ot+3Ok5NHEBH5vhhq08yEaoUQRoDrHBGKx1oRAi+SFkw0Y66AQGWVOoi6xOApk5CtsOCvL1ViJkCQk1kPM4GqftwbmejOH/MXaUd/rfEBRsyhS0GDWICdfL5ezYlMBsUqxKyTuTYlsoNcO9b gitty@yarn.com
-user disable gitster
-user disable yoyoyo
-key add -i gitster ssh-dss AAAAB3NzaC1kc3MAAACBAMS9UJWg59QOSgYIJ+Et0/URoF6lIavUmCAJrQC0CO2IbaaV+F5BPkV4EH7YR5jxXxA2r+AVs5ZA/u9JkhQ8L1oDP/P+Zgwv4IDByoZ5ExKMBKg2Y9TmtzRA3ahvEvJJNPUS4Ft50vpj7i3bktY5PjceqrH4jI7amsMMmnqyKy5BAAAAFQDrBuiwuUpSxcBZBTYTvJaJH7MkLwAAAIBX8ORtNuvmraoVEUgwp+GFlo/ql28yVM1KfT1WKZdUnzUvVloTPdTDflxxvjqwM8zaXNhaspAQO7bCBGHV6Cgq0QTjEi8voSQyAG4m+PGtzmGPL5tovmm3VwEZgU68Ya3JAVFHy3AFxE4sfiW4XLcy1YJ77JEdCgAqfPtn+r6PEgAAAIEAqt6kHkR+ArcJCo03CMx/O0gQh93pl/V6nbTbNOKVCUlMAPuvqXttkwuw/kUdywgMeR4M6RKfjOSvpiJ/F4sd5x8Lyelh6qQWcUCZ2GbFgj1pHZJ5MwUykmFZJZV3y2aGkLfpwakXuqSJpxqGI89ydFi/QyB0W4sokgSUBUI3VKQ= gitster@git.org
-key add -i yoyoyo ssh-dss AAAAB3NzaC1kc3MAAACBAMS9UJWg59QOSgYIJ+Et0/URoF6lIavUmCAJrQC0CO2IbaaV+F5BPkV4EH7YR5jxXxA2r+AVs5ZA/u9JkhQ8L1oDP/P+Zgwv4IDByoZ5ExKMBKg2Y9TmtzRA3ahvEvJJNPUS4Ft50vpj7i3bktY5PjceqrH4jI7amsMMmnqyKy5BAAAAFQDrBuiwuUpSxcBZBTYTvJaJH7MkLwAAAIBX8ORtNuvmraoVEUgwp+GFlo/ql28yVM1KfT1WKZdUnzUvVloTPdTDflxxvjqwM8zaXNhaspAQO7bCBGHV6Cgq0QTjEi8voSQyAG4m+PGtzmGPL5tovmm3VwEZgU68Ya3JAVFHy3AFxE4sfiW4XLcy1YJ77JEdCgAqfPtn+r6PEgAAAIEAqt6kHkR+ArcJCo03CMx/O0gQh93pl/V6nbTbNOKVCUlMAPuvqXttkwuw/kUdywgMeR4M6RKfjOSvpiJ/F4sd5x8Lyelh6qQWcUCZ2GbFgj1pHZJ5MwUykmFZJZV3y2aGkLfpwakXuqSJpxqGI89ydFi/QyB0W4sokgSUBUI3VKQ= yoyoyo@gmail.com
-auth  add  gitty  hi
-auth  add  -i  gitster  hi
+$ sudo gsb.sh dump
+repo  add  some_idea
+repo  add  old_project  -a
+user  add  potter
+user  add  -d  luser
+auth  add  potter  some_idea  -w
+auth  add  -d  luser  some_idea
+auth  add  -d  luser  -a  old_project
 $
 ```
 
-The output of 'dump' piped to `xargs -L 1 sudo gsb.sh` will recreate the system state.
+The output of `dump` piped to `xargs` will recreate the system state:
+
+```bash
+sudo gsb.sh dump |  xargs -L 1 sudo gsb.sh
+```
+
+Commands (or an entire dump) can be re-applied as many times as desired,
+	system state remains consistent:
+
+```bash
+$ sudo gsb.sh dump >state.txt
+$ cat state.txt | xargs -L 1 sudo gsb.sh
+$ cat state.txt | xargs -L 1 sudo gsb.sh
+$ sudo gsb.sh dump >state_b.txt
+$ diff state.txt state_b.txt
+$
+```
+
+`dump` can be repurposed to clean a system using command substitution:
+
+```bash
+$ sudo gsb.sh dump
+repo  add  some_idea
+repo  add  old_project  -a
+user  add  potter
+user  add  -d  luser
+auth  add  potter  some_idea  -w
+auth  add  -d  luser  some_idea
+auth  add  -d  luser  -a  old_project
+$
+$ sudo gsb.sh dump | sed 's/ add / del /g' | xargs -L 1 sudo gsb.sh
+Removing user 'potter' ...
+Removing user 'luser' ...
+user 'potter' doesn't exist or doesn't log into git-shell
+user 'luser' doesn't exist or doesn't log into git-shell
+user 'luser' doesn't exist or doesn't log into git-shell
+$ sudo gsb.sh dump
+$
+```
 
 ## Architecture
 
