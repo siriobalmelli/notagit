@@ -714,7 +714,12 @@ sync()
 	cat >"$H_/gsb/ssh.sh" <<EOF
 #!/bin/bash
 # pass arguments to ssh when using git by pointing to this file in the GIT_SSH environment variable
-ssh -o User=$U_ -o IdentityFile=$H_/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \$*
+ssh -o User=$U_ \
+	-o IdentityFile=$H_/gsb/id_rsa \
+	-o StrictHostKeyChecking=no \
+	-o UserKnownHostsFile=/dev/null \
+	-o BatchMode=yes \
+	\$*
 EOF
 	chmod +x "$H_/gsb/ssh.sh"
 	export GIT_SSH="$H_/gsb/ssh.sh"
@@ -724,7 +729,8 @@ EOF
 	FAILS=
 
 	for r in $REPOS; do
-		if ! gitsync.sh -b "$H_/$r" "ssh://$1/~/$r"; then
+		# filter useless crud from stderr about SSH key being added
+		if ! gitsync.sh -b "$H_/$r" "ssh://$1/~/$r" 2> >(grep -v "Warning: Perm"); then
 			FAILS="$FAILS\n$r"
 		else
 			echo $r
@@ -732,7 +738,7 @@ EOF
 	done
 
 	if [[ $FAILS ]]; then
-		echo -e "failed syncs:\n$FAILS" >&2
+		echo -e "\nfailed syncs:\n$FAILS" >&2
 		return 1
 	else
 		return 0
