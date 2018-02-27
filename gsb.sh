@@ -692,6 +692,9 @@ sync()
 	if ! which gitsync.sh; then
 		echo_die "gitsync.sh not installed"
 	fi
+	# paranoia
+	do_die chown -R $(whoami): ~/gsb
+	do_die chmod -R go-rwx ~/gsb
 
 	# set up ssh command
 	cat >~/gsb/ssh.sh <<EOF
@@ -778,7 +781,7 @@ while [[ "$1" ]]; do
 	##
 	# modes
 	##
-	repo|user|auth|key|dump)
+	repo|user|auth|key|dump|sync)
 		MODE_=$1
 		shift
 		;;
