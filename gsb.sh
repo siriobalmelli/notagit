@@ -714,7 +714,7 @@ sync()
 	cat >"$H_/gsb/ssh.sh" <<EOF
 #!/bin/bash
 # pass arguments to ssh when using git by pointing to this file in the GIT_SSH environment variable
-ssh -o IdentityFile=$H_/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $*
+ssh -o User=$U_ -o IdentityFile=$H_/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $*
 EOF
 	chmod +x "$H_/gsb/ssh.sh"
 	export GIT_SSH="$H_/gsb/ssh.sh"
@@ -724,7 +724,7 @@ EOF
 	FAILS=
 
 	for r in $REPOS; do
-		if ! gitsync.sh -b "$H_/$r" "ssh://${U_}@$1/~/$r"; then
+		if ! gitsync.sh -b "$H_/$r" "ssh://$1/~/$r"; then
 			FAILS="$FAILS\n$r"
 		else
 			echo $r
