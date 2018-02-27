@@ -22,6 +22,7 @@ gsb.sh [-v|--verbose] [-?|-h|--help]
 	key		{ls|add|mod|rm}	USER KEY	[-d|--disabled]
 	auth	{ls|add|mod|rm}	USER REPO	[-a|--archived] [-d|--disabled]	[-w|--write]
 	dump
+	sync					REMOTE_HOST
 
 Field definition (RegEx):
 REPO	:=	'[a-zA-Z_-]+'
@@ -243,6 +244,77 @@ user 'luser' doesn't exist or doesn't log into git-shell
 user 'luser' doesn't exist or doesn't log into git-shell
 $ sudo gsb.sh dump
 $
+```
+
+## Sync
+
+There is a `sync` facility used to automatically run [gitsync.sh](./gitsync.md)
+	for all repos to which a user has local `-w` access.
+
+Here is a sample `crontab` entry (this is most useful in automated scenarios):
+
+```bash
+# stop cron from complaining
+MAILTO=""
+# make sure 'gsb.sh' and 'logger' are found
+PATH=/usr/bin:/usr/sbin:$PATH
+# sync every 5 minutes
+*/5 *     * * *   sudo gsb.sh sync git.gv.ngs 2>&1 | logger -t gsb_sync
+```
+
+For security purposes, there are some constraints:
+
+1. User executing the sync must themselves be a valid `gsb` user
+	(git-shell only login, etc).
+
+1. There must be a `~/gsb` directory for the user, containing an rsa keypair.
+
+1. User must have permissions to execute `gsb.sh` sudo, usually with:
+	```bash
+	git_sync	ALL=(root)	NOPASSWD:	/usr/sbin/gsb.sh
+	```
+
+Here is an example of setting up sync:
+
+```bash
+# add sync user locally
+admin@a:~$ sudo gsb.sh user add git_sync
+Adding user 'git_sync' ...
+Adding new group 'git_sync' (1002) ...
+Adding new user 'git_sync' (1001) with group 'git_sync' ...
+admin@a:~$
+# give sync user write permissions to 'test' repo (will try to sync 'test')
+admin@a:~$ sudo gsb.sh auth add -w git_sync test
+admin@a:~$
+# make sync-specific directory in 'git_sync' home
+admin@a:~$ sudo -u git_sync -H -- mkdir /home/git_sync/gsb
+admin@a:~$
+# generate an ssh keypair to use when accessing remote machines
+admin@a:~$ sudo -u git_sync -H -- ssh-keygen
+Generating public/private rsa key pair.
+Enter file in which to save the key (/home/git_sync/.ssh/id_rsa): /home/git_sync/gsb/id_rsa
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /home/git_sync/gsb/id_rsa.
+Your public key has been saved in /home/git_sync/gsb/id_rsa.pub.
+admin@a:~$
+# add public key to gsb
+admin@a:~$ sudo gsb.sh key add git_sync $(sudo -u git_sync -H -- cat /home/git_sync/gsb/id_rsa.pub)
+admin@a:~$
+# dump all gsb definitions for 'git_sync' (including key),
+#+	add them to 'gsb' on the remote machine (see 'dump' documentation for details)
+# Note that 'admin' on remote machine has NOPASSWD: sudo privileges
+admin@a:~$ sudo gsb.sh dump | grep git_sync | ssh 192.168.57.153 "xargs -L 1 sudo gsb.sh"
+admin@192.168.57.153 password:
+Adding user 'git_sync' ...
+Adding new group 'git_sync' (1002) ...
+Adding new user 'git_sync' (1001) with group 'git_sync' ...
+admin@a:~$
+# run a sync against remote machine
+admin@a:~$ sudo -u git_sync -H -- sudo gsb.sh sync 192.168.57.153
+/usr/sbin/gitsync.sh
+test
+admin@a:~$
 ```
 
 ## Architecture
