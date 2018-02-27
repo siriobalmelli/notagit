@@ -706,9 +706,23 @@ EOF
 	export GIT_SSH=~/gsb/ssh.sh
 
 	# try to sync into all repos for which we have write-auth
-	sudo gsb.sh auth ls \
-		| sed -rn 's/'$(whoami)'\s+(\S+)\s+-w/\1/p' \
-		| xargs -I{} gitsync.sh -b ~/{} ssh://$1/~/{}
+	REPOS="$(sudo gsb.sh auth ls | sed -rn 's/'$(whoami)'\s+(\S+)\s+-w/\1/p')"
+	FAILS=
+
+	for r in $REPOS; do
+		if ! gitsync.sh -b ~/$r ssh://$1/~/$r; then
+			FAILS="$FAILS\n$r"
+		else
+			echo $r
+		fi
+	done
+
+	if [[ $FAILS ]]; then
+		echo -e "failed syncs:\n$FAILS" >&2
+		return 1
+	else
+		return 0
+	fi
 }
 
 
