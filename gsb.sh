@@ -682,35 +682,46 @@ dump()
 # Sync all repos with REMOTE_HOST
 sync()
 {
+	# existentialism ... we may conceivably be run as:
+	#+	git_sync$ sudo gsb.sh
+	#+	admin$ sudo -u git_sync -H -- gsb.sh
+	#+	admin$ sudo su -c gsb.sh
+	# ... and in each case should work with:
+	#+	git_sync
+	#+	git_sync
+	#+	admin
+	U_=${SUDO_USER:-$USER}
+	H_="/home/$U_"
+
 	# sanity
 	if [[ -z "$1" ]]; then
 		echo_die "expecting REMOTE_HOST e.g. 'git.company.com' or '192.168.1.1'"
 	fi
-	if [[ ! -e ~/gsb/id_rsa ]]; then
-		echo_die "expecting a '~/gsb' directory containing 'id_dsa'"
+	if [[ ! -e "$H_/gsb/id_rsa" ]]; then
+		echo_die "expecting a '$H_/gsb' directory containing 'id_dsa'"
 	fi
 	if ! which gitsync.sh; then
 		echo_die "gitsync.sh not installed"
 	fi
 	# paranoia
-	do_die chown -R $(whoami): ~/gsb
-	do_die chmod -R go-rwx ~/gsb
+	do_die chown -R $U_: "$H_/gsb"
+	do_die chmod -R go-rwx "$H_/gsb"
 
 	# set up ssh command
-	cat >~/gsb/ssh.sh <<EOF
+	cat >"$H_/gsb/ssh.sh" <<EOF
 #!/bin/bash
 # pass arguments to ssh when using git by pointing to this file in the GIT_SSH environment variable
-ssh -o IdentityFile=~/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $*
+ssh -o IdentityFile=$H_/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $*
 EOF
-	chmod +x ~/gsb/ssh.sh
-	export GIT_SSH=~/gsb/ssh.sh
+	chmod +x "$H_/gsb/ssh.sh"
+	export GIT_SSH="$H_/gsb/ssh.sh"
 
 	# try to sync into all repos for which we have write-auth
-	REPOS="$(sudo gsb.sh auth ls | sed -rn 's/'$(whoami)'\s+(\S+)\s+-w/\1/p')"
+	REPOS="$($0 auth ls | sed -rn 's/'$U_'\s+(\S+)\s+-w/\1/p')"
 	FAILS=
 
 	for r in $REPOS; do
-		if ! gitsync.sh -b ~/$r ssh://$1/~/$r; then
+		if ! gitsync.sh -b "$H_/$r" "ssh://$1/~/$r"; then
 			FAILS="$FAILS\n$r"
 		else
 			echo $r
