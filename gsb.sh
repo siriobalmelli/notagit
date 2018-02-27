@@ -694,6 +694,9 @@ sync()
 	H_="/home/$U_"
 
 	# sanity
+	if [[ "$U_" == "root" ]]; then
+		echo_die "root is never a valid gsb user"
+	fi
 	if [[ -z "$1" ]]; then
 		echo_die "expecting REMOTE_HOST e.g. 'git.company.com' or '192.168.1.1'"
 	fi
