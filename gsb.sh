@@ -721,7 +721,7 @@ EOF
 	FAILS=
 
 	for r in $REPOS; do
-		if ! gitsync.sh -b "$H_/$r" "ssh://$1/~/$r"; then
+		if ! gitsync.sh -b "$H_/$r" "ssh://${U_}@$1/~/$r"; then
 			FAILS="$FAILS\n$r"
 		else
 			echo $r
