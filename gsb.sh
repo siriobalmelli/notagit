@@ -15,6 +15,7 @@ $0 [-v|--verbose] [-?|-h|--help]
 	key	{ls|add|mod|rm}	USER KEY	[-d|--disabled]
 	auth	{ls|add|mod|rm}	USER REPO	[-a|--archived] [-d|--disabled]	[-w|--write]
 	dump
+	sync			REMOTE_HOST
 
 Field definition (RegEx):
 REPO	:=	'$REPO_VAL'
@@ -671,6 +672,40 @@ dump()
 	bash -c "$0 auth ls -v -a" 2>/dev/null
 	bash -c "$0 auth ls -v -d -a" 2>/dev/null
 	return 0
+}
+
+
+#	sync()
+#
+#		$1	:	REMOTE_HOST
+#
+# Sync all repos with REMOTE_HOST
+sync()
+{
+	# sanity
+	if [[ -z "$1" ]]; then
+		echo_die "expecting REMOTE_HOST e.g. 'git.company.com' or '192.168.1.1'"
+	fi
+	if [[ ! -e ~/gsb/id_rsa ]]; then
+		echo_die "expecting a '~/gsb' directory containing 'id_dsa'"
+	fi
+	if ! which gitsync.sh; then
+		echo_die "gitsync.sh not installed"
+	fi
+
+	# set up ssh command
+	cat >~/gsb/ssh.sh <<EOF
+#!/bin/bash
+# pass arguments to ssh when using git by pointing to this file in the GIT_SSH environment variable
+ssh -o IdentityFile=~/gsb/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null $*
+EOF
+	chmod +x ~/gsb/ssh.sh
+	export GIT_SSH=~/gsb/ssh.sh
+
+	# try to sync into all repos for which we have write-auth
+	sudo gsb.sh auth ls \
+		| sed -rn 's/'$(whoami)'\s+(\S+)\s+-w/\1/p' \
+		| xargs -I{} gitsync.sh -b ~/{} ssh://$1/~/{}
 }
 
 
