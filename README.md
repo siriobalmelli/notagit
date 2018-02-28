@@ -106,6 +106,7 @@ If you would like to hack on the documentation:
 	are pulling?
 - Pen testing
 - Tab completion for `gsb.sh`
+- Support for disabling user keys
 
 ## Naming
 
