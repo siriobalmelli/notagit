@@ -739,6 +739,7 @@ EOF
 
 	if [[ $FAILS ]]; then
 		echo -e "\nfailed syncs:\n$FAILS" >&2
+		echo "user: $U_" >&2
 		return 1
 	else
 		return 0
