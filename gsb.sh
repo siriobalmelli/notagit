@@ -3,7 +3,7 @@
 # input validation regeces ;)
 REPO_VAL='[a-zA-Z_-]+'
 USER_VAL='[a-zA-Z_-]+'
-KEY_VAL='ssh-[rd]s[as] \S+ \S+'
+KEY_VAL='(ssh-rsa|ssh-dsa|ecdsa-sha2-nistp[0-9]+) \S+ \S+'
 
 
 usage()
